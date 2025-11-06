@@ -52,6 +52,7 @@ body {
 }
 
 .page-title {
+  font-family: Georgia, serif;
   font-size: 2rem;
   color: var(--iml-navy);
   margin-bottom: 0.5rem;
