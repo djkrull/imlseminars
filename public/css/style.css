@@ -1,9 +1,11 @@
 /* IML Research Talks Registration - Styles */
 
 :root {
+  --iml-cream: #f5e6d3;
+  --iml-navy: #1a2332;
+  --iml-dark-navy: #0f1720;
   --iml-gold: #D4AF37;
   --iml-dark-gold: #B8941F;
-  --iml-navy: #003366;
   --iml-light-gray: #f8f9fa;
   --iml-border: #dee2e6;
   --text-dark: #212529;
@@ -27,9 +29,10 @@ body {
 
 /* Header */
 .header {
-  background-color: var(--iml-gold);
+  background-color: var(--iml-cream);
   padding: 1.5rem 2rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-bottom: 3px solid var(--iml-navy);
 }
 
 .header-content {
@@ -41,28 +44,30 @@ body {
 }
 
 .logo {
-  width: 60px;
-  height: 60px;
-  background-color: white;
-  border-radius: 50%;
+  width: 70px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.5rem;
-  color: var(--iml-gold);
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .header-title h1 {
-  color: white;
+  color: var(--iml-navy);
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
 
 .header-title p {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--iml-dark-navy);
   font-size: 0.9rem;
+  opacity: 0.8;
 }
 
 /* Main Container */
