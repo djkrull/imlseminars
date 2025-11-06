@@ -48,9 +48,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: white;
-  border-radius: 50%;
-  padding: 5px;
 }
 
 .logo img {

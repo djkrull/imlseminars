@@ -1,4 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <circle cx="100" cy="100" r="100" fill="#1e3a5f"/>
-  <text x="100" y="120" font-family="Georgia, serif" font-size="80" font-weight="bold" fill="#f5e6d3" text-anchor="middle">ML</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- Cream background circle -->
+  <circle cx="200" cy="200" r="200" fill="#f5e6d3"/>
+
+  <!-- Navy blue silhouette placeholder -->
+  <!-- This is a simplified placeholder - replace with actual silhouette path -->
+  <circle cx="200" cy="200" r="160" fill="#1e3a5f"/>
+
+  <!-- Text placeholder for now -->
+  <text x="200" y="220" font-family="Georgia, serif" font-size="120" font-weight="bold" fill="#f5e6d3" text-anchor="middle">ML</text>
 </svg>
