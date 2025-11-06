@@ -29,7 +29,9 @@ const talkValidationRules = [
 
   body('sendCopy')
     .optional()
-    .isBoolean()
+    .custom((value) => {
+      return value === 'on' || value === true || value === 'true' || value === false || value === 'false' || value === undefined;
+    })
     .withMessage('Invalid checkbox value'),
 
   body('talkTitle')

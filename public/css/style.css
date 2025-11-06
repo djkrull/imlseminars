@@ -150,7 +150,7 @@ body {
   border: none;
   border-radius: 50px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: normal;
   cursor: pointer;
   transition: all 0.3s;
   text-decoration: none;
@@ -171,12 +171,12 @@ body {
 }
 
 .btn-secondary {
-  background-color: var(--iml-gold);
-  color: white;
+  background-color: #f9edc6;
+  color: var(--text-dark);
 }
 
 .btn-secondary:hover {
-  background-color: var(--iml-dark-gold);
+  background-color: #f5e6d3;
 }
 
 .btn-danger {
@@ -283,7 +283,9 @@ body {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, var(--iml-gold) 0%, var(--iml-dark-gold) 100%);
+  background: url('/images/Brand%20screen_640x440.png');
+  background-size: cover;
+  background-position: center;
   color: white;
   padding: 1.5rem;
   border-radius: 8px;
