@@ -1,0 +1,12 @@
+INSTRUCTIONS TO ADD IML LOGO:
+
+1. Save the blue IML circular seal/emblem logo (the one with three crowns and text)
+2. Name it: iml-seal-logo.png
+3. Save to: C:\Users\chrwah28.KVA\Development\imlseminars\public\images\
+
+Then I will update the code to use it.
+
+The logo should be the official circular blue IML seal that shows:
+- "KUNGL. VETENSKAPSAKADEMIEN" around the edge
+- Three crowns symbol
+- Circular blue design
