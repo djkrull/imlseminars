@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">IML</div>
+      <div class="header-title">
+        <h1>Institut Mittag-Leffler</h1>
+        <p>The Royal Swedish Academy of Sciences</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="success-card">
+      <div class="success-icon">✓</div>
+      <h2>Submission Successful!</h2>
+      <p>Thank you for submitting your research talk proposal.</p>
+      <% if (submissionId) { %>
+        <p style="margin-top: 1rem; font-size: 0.9rem;">Submission ID: #<%= submissionId %></p>
+      <% } %>
+    </div>
+
+    <div class="info-box">
+      <h3>What happens next?</h3>
+      <p>
+        Your talk proposal has been successfully submitted to the Institut Mittag-Leffler administration.
+        Our team will review your submission and contact you via email with further information.
+      </p>
+      <p style="margin-top: 1rem;">
+        If you have any questions in the meantime, please contact us at:
+        <a href="mailto:administration@mittag-leffler.se">administration@mittag-leffler.se</a>
+      </p>
+    </div>
+
+    <div class="btn-group" style="margin-top: 2rem;">
+      <a href="/" class="btn btn-secondary">Submit Another Talk</a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+</body>
+</html>

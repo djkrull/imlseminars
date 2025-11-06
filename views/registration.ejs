@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">IML</div>
+      <div class="header-title">
+        <h1>Institut Mittag-Leffler</h1>
+        <p>The Royal Swedish Academy of Sciences</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <h2 class="page-title">Submit Your Research Talk</h2>
+    <p class="page-subtitle">Please fill out the form below to submit your research talk proposal</p>
+
+    <% if (errors && errors.length > 0) { %>
+      <div class="error-list">
+        <ul>
+          <% errors.forEach(error => { %>
+            <li><%= error.msg %></li>
+          <% }); %>
+        </ul>
+      </div>
+    <% } %>
+
+    <div class="form-card">
+      <form action="/api/submit" method="POST" id="talkForm">
+        <!-- Personal Information -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName" class="form-label">
+              First Name <span class="required">*</span>
+            </label>
+            <input
+              type="text"
+              id="firstName"
+              name="firstName"
+              class="form-input"
+              value="<%= formData.firstName || '' %>"
+              required
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="lastName" class="form-label">
+              Last Name <span class="required">*</span>
+            </label>
+            <input
+              type="text"
+              id="lastName"
+              name="lastName"
+              class="form-input"
+              value="<%= formData.lastName || '' %>"
+              required
+            >
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email" class="form-label">
+            Email Address <span class="required">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            class="form-input"
+            value="<%= formData.email || '' %>"
+            required
+          >
+          <small class="form-helper">
+            When you submit this form, confirmation will be sent to the email address entered above.
+          </small>
+        </div>
+
+        <!-- Send Copy Checkbox -->
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input
+              type="checkbox"
+              id="sendCopy"
+              name="sendCopy"
+              <%= formData.sendCopy ? 'checked' : '' %>
+            >
+            <label for="sendCopy">Include copies of your answers in the confirmation email</label>
+          </div>
+        </div>
+
+        <!-- Affiliation -->
+        <div class="form-group">
+          <label for="affiliation" class="form-label">
+            Affiliation <span class="required">*</span>
+          </label>
+          <input
+            type="text"
+            id="affiliation"
+            name="affiliation"
+            class="form-input"
+            placeholder="University or Institution"
+            value="<%= formData.affiliation || '' %>"
+            required
+          >
+        </div>
+
+        <!-- Talk Title -->
+        <div class="form-group">
+          <label for="talkTitle" class="form-label">
+            Title of Your Talk <span class="required">*</span>
+          </label>
+          <input
+            type="text"
+            id="talkTitle"
+            name="talkTitle"
+            class="form-input"
+            value="<%= formData.talkTitle || '' %>"
+            required
+          >
+        </div>
+
+        <!-- Talk Abstract -->
+        <div class="form-group">
+          <label for="talkAbstract" class="form-label">
+            Abstract of Your Talk <span class="required">*</span>
+          </label>
+          <textarea
+            id="talkAbstract"
+            name="talkAbstract"
+            class="form-textarea"
+            required
+            minlength="50"
+          ><%= formData.talkAbstract || '' %></textarea>
+          <small class="form-helper">
+            Please provide a detailed abstract of at least 50 characters.
+          </small>
+        </div>
+
+        <!-- Questions -->
+        <div class="form-group">
+          <label for="questions" class="form-label">
+            Any Questions?
+          </label>
+          <textarea
+            id="questions"
+            name="questions"
+            class="form-textarea"
+            placeholder="Please enter any questions or additional comments here..."
+          ><%= formData.questions || '' %></textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">Submit</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Contact Information -->
+    <div class="info-box">
+      <h3>Contact</h3>
+      <p>For questions, please contact the IML Administration:</p>
+      <p><a href="mailto:administration@mittag-leffler.se">administration@mittag-leffler.se</a></p>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+
+  <script src="/js/form.js"></script>
+</body>
+</html>

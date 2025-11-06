@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">IML</div>
+      <div class="header-title">
+        <h1>Institut Mittag-Leffler</h1>
+        <p>The Royal Swedish Academy of Sciences</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="form-card" style="text-align: center;">
+      <h2 class="page-title" style="color: var(--error-red); font-size: 4rem;">
+        <%= statusCode %>
+      </h2>
+      <h3 style="color: var(--iml-navy); margin-bottom: 1rem;">
+        <%= title %>
+      </h3>
+      <p style="color: var(--text-muted); margin-bottom: 2rem;">
+        <%= message %>
+      </p>
+      <div class="btn-group">
+        <a href="/" class="btn btn-primary">Go to Homepage</a>
+        <a href="/admin/dashboard" class="btn btn-secondary">Admin Dashboard</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+  </footer>
+</body>
+</html>

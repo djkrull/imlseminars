@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">IML</div>
+      <div class="header-title">
+        <h1>Institut Mittag-Leffler</h1>
+        <p>Admin Dashboard</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container" style="max-width: 1400px;">
+    <div class="admin-header">
+      <h2 class="page-title" style="margin: 0;">Talk Submissions</h2>
+      <div class="admin-actions">
+        <a href="/admin/export" class="btn btn-secondary">
+          📥 Export to Excel
+        </a>
+        <a href="/admin/logout" class="btn btn-danger">
+          Logout
+        </a>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <h3>Total Submissions</h3>
+        <p><%= totalSubmissions %></p>
+      </div>
+      <div class="stat-card">
+        <h3>Status</h3>
+        <p>Active</p>
+      </div>
+    </div>
+
+    <!-- Submissions Table -->
+    <div class="table-container">
+      <% if (talks && talks.length > 0) { %>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Affiliation</th>
+              <th>Talk Title</th>
+              <th>Submitted</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% talks.forEach(talk => { %>
+              <tr>
+                <td>#<%= talk.id %></td>
+                <td><%= talk.getFullName() %></td>
+                <td><%= talk.email %></td>
+                <td><%= talk.affiliation %></td>
+                <td title="<%= talk.talkTitle %>"><%= talk.talkTitle %></td>
+                <td>
+                  <%= new Date(talk.submittedAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  }) %>
+                </td>
+                <td>
+                  <div class="table-actions">
+                    <a href="/admin/view/<%= talk.id %>" class="btn btn-primary btn-sm">
+                      View
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          <h3>No submissions yet</h3>
+          <p>Talk submissions will appear here once researchers start submitting.</p>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="btn-group" style="margin-top: 2rem;">
+      <a href="/" class="btn btn-secondary">View Registration Form</a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+</body>
+</html>
