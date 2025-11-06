@@ -255,6 +255,7 @@ body {
 }
 
 .info-box h3 {
+  font-family: Georgia, serif;
   color: var(--iml-navy);
   margin-bottom: 0.5rem;
 }
