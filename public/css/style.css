@@ -60,14 +60,14 @@ body {
 }
 
 .header-title h1 {
-  color: white;
+  color: var(--iml-navy);
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
 
 .header-title p {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--iml-dark-navy);
   font-size: 0.9rem;
 }
 
