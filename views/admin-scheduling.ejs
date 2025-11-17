@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule Management | Institut Mittag-Leffler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .scheduling-container {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .sidebar {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+
+    .sidebar h3 {
+      margin-top: 0;
+      color: #003E7E;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+
+    .submission-card {
+      background: #f9edc6;
+      border: 2px solid #e6d8a0;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      cursor: move;
+      transition: all 0.2s;
+    }
+
+    .submission-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .submission-card.dragging {
+      opacity: 0.5;
+    }
+
+    .submission-card h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: #003E7E;
+    }
+
+    .submission-card p {
+      margin: 0.25rem 0;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .calendar-view {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: 120px repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1px;
+      background: #ddd;
+      border: 1px solid #ddd;
+    }
+
+    .room-header {
+      background: #003E7E;
+      color: white;
+      padding: 1rem;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .time-slot {
+      background: white;
+      padding: 0.5rem;
+      min-height: 80px;
+      border-right: 1px solid #ddd;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .calendar-cell {
+      background: #f8f8f8;
+      padding: 0.5rem;
+      min-height: 80px;
+      position: relative;
+    }
+
+    .calendar-cell.drop-zone {
+      background: #e8f4f8;
+      border: 2px dashed #003E7E;
+    }
+
+    .scheduled-talk {
+      background: #90EE90;
+      border: 2px solid #228B22;
+      border-radius: 4px;
+      padding: 0.5rem 0.5rem 0.5rem 2.5rem;
+      margin-bottom: 0.5rem;
+      position: relative;
+    }
+
+    .scheduled-talk.published {
+      background: #f9edc6;
+      border-color: #D4AF37;
+    }
+
+    .scheduled-talk.conflict {
+      background: #FFB6C1;
+      border-color: #DC143C;
+    }
+
+    .scheduled-talk.standalone-event {
+      background: #ADD8E6;
+      border-color: #4682B4;
+    }
+
+    .batch-actions {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .scheduled-talk h5 {
+      margin: 0 0 0.25rem 0;
+      font-size: 0.85rem;
+      color: #003E7E;
+    }
+
+    .scheduled-talk p {
+      margin: 0;
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    .scheduled-talk .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #DC143C;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      font-size: 0.7rem;
+      display: none;
+    }
+
+    .scheduled-talk:hover .delete-btn {
+      display: block;
+    }
+
+    .conflict-warning {
+      background: #FFF3CD;
+      border: 1px solid #FFC107;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      color: #856404;
+    }
+
+    .btn-add-event {
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 2rem;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+      color: #003E7E;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Lato', sans-serif;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #ddd;
+    }
+
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+      font-weight: bold;
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab.active {
+      color: #003E7E;
+      border-bottom-color: #003E7E;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <img src="/images/IML_bla.png" alt="Institut Mittag-Leffler - The Royal Swedish Academy of Sciences" style="height: 80px; width: auto;">
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container" style="max-width: 1600px;">
+    <div class="admin-header">
+      <h2 class="page-title" style="margin: 0;">Schedule Management</h2>
+      <div class="admin-actions">
+        <a href="/admin/scheduling/export" class="btn btn-secondary">
+          Export to Excel
+        </a>
+        <a href="/admin/dashboard" class="btn btn-secondary">
+          View Submissions
+        </a>
+        <a href="/admin/logout" class="btn btn-primary">
+          Logout
+        </a>
+      </div>
+    </div>
+
+    <div id="conflicts-container"></div>
+
+    <div class="scheduling-container">
+      <!-- Sidebar with unscheduled submissions -->
+      <div class="sidebar">
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('unscheduled')">Unscheduled</button>
+          <button class="tab" onclick="switchTab('events')">Add Event</button>
+        </div>
+
+        <div id="unscheduled-tab" class="tab-content active">
+          <h3>Unscheduled Submissions</h3>
+          <div id="unscheduled-list">
+            <!-- Submissions will be loaded here -->
+          </div>
+        </div>
+
+        <div id="events-tab" class="tab-content">
+          <h3>Add Standalone Event</h3>
+          <button class="btn btn-primary btn-add-event" onclick="showEventModal()">
+            + New Event
+          </button>
+          <p style="margin-top: 1rem; font-size: 0.85rem; color: #666;">
+            Add events like coffee breaks, lunches, or social activities that aren't linked to talk submissions.
+          </p>
+        </div>
+      </div>
+
+      <!-- Calendar view -->
+      <div class="calendar-view">
+        <div class="calendar-header">
+          <h3 style="margin: 0;">Schedule</h3>
+          <div style="display: flex; gap: 0.5rem;">
+            <a href="/admin/scheduling/export-app" class="btn btn-secondary" style="padding: 0.5rem 1rem; text-decoration: none;">
+              Export for App
+            </a>
+            <select id="view-mode" onchange="changeViewMode()" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
+              <option value="list">List View</option>
+              <option value="daily">Daily View</option>
+              <option value="week">Week View</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Batch Actions -->
+        <div class="batch-actions">
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll()" style="width: 18px; height: 18px;">
+            <span style="font-weight: bold;">Select All</span>
+          </label>
+          <button class="btn btn-primary" onclick="publishSelected()">
+            Publish Selected
+          </button>
+          <span id="selected-count" style="color: #666; font-size: 0.9rem;"></span>
+        </div>
+
+        <div id="schedule-container">
+          <!-- Schedule will be rendered here -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Edit/Schedule Modal -->
+  <div id="schedule-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title">Schedule Talk</h3>
+      <form id="schedule-form">
+        <input type="hidden" id="modal-talk-id">
+        <input type="hidden" id="modal-submission-id">
+
+        <div class="form-group">
+          <label>Talk Title *</label>
+          <input type="text" id="modal-title-edit" required>
+        </div>
+
+        <div class="form-group">
+          <label>Abstract *</label>
+          <textarea id="modal-abstract-edit" rows="4" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Room *</label>
+          <select id="modal-room" required>
+            <option value="">Select a room...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Start Time *</label>
+          <input type="datetime-local" id="modal-start" required>
+        </div>
+
+        <div class="form-group">
+          <label>End Time *</label>
+          <input type="datetime-local" id="modal-end" required>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="modal-publish">
+            Publish to website
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="modal-notes" rows="3"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Event Modal -->
+  <div id="event-modal" class="modal">
+    <div class="modal-content">
+      <h3>Add Standalone Event</h3>
+      <form id="event-form">
+        <div class="form-group">
+          <label>Event Title *</label>
+          <input type="text" id="event-title" required placeholder="e.g., Morning Coffee, Lunch Break">
+        </div>
+
+        <div class="form-group">
+          <label>Speaker (optional)</label>
+          <input type="text" id="event-speaker" placeholder="Leave blank for non-talk events">
+        </div>
+
+        <div class="form-group">
+          <label>Affiliation (optional)</label>
+          <input type="text" id="event-affiliation">
+        </div>
+
+        <div class="form-group">
+          <label>Description (optional)</label>
+          <textarea id="event-abstract" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Room *</label>
+          <select id="event-room" required>
+            <option value="">Select a room...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Start Time *</label>
+          <input type="datetime-local" id="event-start" required>
+        </div>
+
+        <div class="form-group">
+          <label>End Time *</label>
+          <input type="datetime-local" id="event-end" required>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="event-publish">
+            Publish to website
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Add Event</button>
+          <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+
+  <script>
+    let rooms = [];
+    let submissions = [];
+    let scheduledTalks = [];
+    let draggedItem = null;
+
+    // Load initial data
+    async function loadData() {
+      try {
+        const [roomsRes, submissionsRes, scheduledRes] = await Promise.all([
+          fetch('/api/scheduling/rooms', { credentials: 'same-origin' }),
+          fetch('/api/scheduling/submissions', { credentials: 'same-origin' }),
+          fetch('/api/scheduling/scheduled', { credentials: 'same-origin' })
+        ]);
+
+        rooms = await roomsRes.json();
+        submissions = await submissionsRes.json();
+        scheduledTalks = await scheduledRes.json();
+
+        populateRoomSelects();
+        renderUnscheduledSubmissions();
+        renderSchedule();
+        checkConflicts();
+      } catch (error) {
+        console.error('Error loading data:', error);
+        alert('Failed to load scheduling data');
+      }
+    }
+
+    function populateRoomSelects() {
+      const selects = ['modal-room', 'event-room'];
+      selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">Select a room...</option>';
+        rooms.forEach(room => {
+          const option = document.createElement('option');
+          option.value = room.id;
+          option.textContent = `${room.name}${room.building ? ' (' + room.building + ')' : ''}`;
+          select.appendChild(option);
+        });
+      });
+    }
+
+    function renderUnscheduledSubmissions() {
+      const scheduledIds = scheduledTalks
+        .filter(t => t.submission_id)
+        .map(t => t.submission_id);
+
+      const unscheduled = submissions.filter(s => !scheduledIds.includes(s.id));
+
+      const container = document.getElementById('unscheduled-list');
+      if (unscheduled.length === 0) {
+        container.innerHTML = '<p style="color: #666; font-size: 0.9rem;">All submissions are scheduled!</p>';
+        return;
+      }
+
+      container.innerHTML = unscheduled.map(sub => `
+        <div class="submission-card" draggable="true"
+             ondragstart="dragStart(event, ${sub.id})"
+             ondragend="dragEnd(event)"
+             onclick="showScheduleModal(${sub.id})">
+          <h4>${sub.talkTitle}</h4>
+          <p><strong>${sub.firstName} ${sub.lastName}</strong></p>
+          <p>${sub.affiliation}</p>
+        </div>
+      `).join('');
+    }
+
+    function renderSchedule() {
+      const container = document.getElementById('schedule-container');
+
+      if (scheduledTalks.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 3rem; color: #666;">
+            <p style="font-size: 1.1rem;">No talks scheduled yet</p>
+            <p>Drag submissions from the left panel to schedule them</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Group by date
+      const byDate = {};
+      scheduledTalks.forEach(talk => {
+        const date = new Date(talk.start_time).toLocaleDateString();
+        if (!byDate[date]) byDate[date] = [];
+        byDate[date].push(talk);
+      });
+
+      let html = '';
+      Object.keys(byDate).sort().forEach(date => {
+        html += `<h4 style="margin-top: 2rem; color: #003E7E;">${date}</h4>`;
+
+        byDate[date].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+        html += '<div style="display: grid; gap: 1rem; margin-top: 1rem;">';
+        byDate[date].forEach(talk => {
+          const isEvent = !talk.submission_id;
+          const title = isEvent ? talk.event_title : talk.talk_title;
+          const speaker = isEvent ? talk.event_speaker : `${talk.first_name} ${talk.last_name}`;
+          const startTime = new Date(talk.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const endTime = new Date(talk.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const isPublished = talk.status === 'published';
+
+          html += `
+            <div class="scheduled-talk ${isEvent ? 'standalone-event' : ''} ${isPublished ? 'published' : ''}"
+                 data-talk-id="${talk.id}">
+              <input type="checkbox" class="talk-checkbox"
+                     onclick="event.stopPropagation()"
+                     data-talk-id="${talk.id}"
+                     style="position: absolute; top: 0.5rem; left: 0.5rem; width: 20px; height: 20px; cursor: pointer;">
+              <button class="delete-btn" onclick="deleteTalk(event, ${talk.id})">×</button>
+              <div onclick="editScheduledTalk(${talk.id})" style="cursor: pointer; flex: 1;">
+                <h5>${title}</h5>
+                ${speaker ? `<p><strong>${speaker}</strong></p>` : ''}
+                <p>📍 ${talk.room_name || 'TBD'}</p>
+                <p>🕒 ${startTime} - ${endTime}</p>
+              </div>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                ${isPublished
+                  ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <span style="color: #D4AF37; font-weight: bold;">Published</span>
+                      <button class="btn btn-sm" onclick="unpublishTalk(event, ${talk.id})"
+                        style="background: #f9edc6; color: #003E7E; padding: 0.25rem 0.75rem; border: 1px solid #D4AF37; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                        Unpublish
+                      </button>
+                    </div>`
+                  : `<button class="btn btn-sm" onclick="togglePublish(event, ${talk.id})"
+                      style="background: #003E7E; color: white; padding: 0.25rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                      Mark as Published
+                    </button>`
+                }
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      });
+
+      container.innerHTML = html;
+    }
+
+    function checkConflicts() {
+      // Check for room conflicts
+      const conflicts = [];
+
+      for (let i = 0; i < scheduledTalks.length; i++) {
+        for (let j = i + 1; j < scheduledTalks.length; j++) {
+          const t1 = scheduledTalks[i];
+          const t2 = scheduledTalks[j];
+
+          if (t1.room_id === t2.room_id) {
+            const start1 = new Date(t1.start_time);
+            const end1 = new Date(t1.end_time);
+            const start2 = new Date(t2.start_time);
+            const end2 = new Date(t2.end_time);
+
+            if (start1 < end2 && start2 < end1) {
+              conflicts.push({
+                type: 'room',
+                talk1: t1,
+                talk2: t2,
+                room: t1.room_name
+              });
+            }
+          }
+        }
+      }
+
+      const container = document.getElementById('conflicts-container');
+      if (conflicts.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = conflicts.map(c => `
+        <div class="conflict-warning">
+          <strong>⚠️ Room Conflict Detected!</strong>
+          <p>Room "${c.room}" is double-booked:</p>
+          <p>• ${c.talk1.talk_title || c.talk1.event_title} at ${new Date(c.talk1.start_time).toLocaleString()}</p>
+          <p>• ${c.talk2.talk_title || c.talk2.event_title} at ${new Date(c.talk2.start_time).toLocaleString()}</p>
+        </div>
+      `).join('');
+    }
+
+    // Drag and drop handlers
+    function dragStart(event, submissionId) {
+      draggedItem = submissions.find(s => s.id === submissionId);
+      event.dataTransfer.effectAllowed = 'move';
+      event.target.classList.add('dragging');
+    }
+
+    function dragEnd(event) {
+      event.target.classList.remove('dragging');
+    }
+
+    // Modal functions
+    function showScheduleModal(submissionId, scheduledTalkId = null) {
+      const modal = document.getElementById('schedule-modal');
+      const form = document.getElementById('schedule-form');
+
+      if (scheduledTalkId) {
+        // Edit existing
+        const talk = scheduledTalks.find(t => t.id === scheduledTalkId);
+        document.getElementById('modal-title').textContent = 'Edit Scheduled Talk';
+        document.getElementById('modal-talk-id').value = talk.id;
+        document.getElementById('modal-submission-id').value = talk.submission_id || '';
+        document.getElementById('modal-title-edit').value = talk.event_title || talk.talk_title || '';
+        document.getElementById('modal-abstract-edit').value = talk.event_abstract || talk.talk_abstract || '';
+        document.getElementById('modal-room').value = talk.room_id || '';
+        document.getElementById('modal-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
+        document.getElementById('modal-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+        document.getElementById('modal-publish').checked = talk.publish_to_website;
+        document.getElementById('modal-notes').value = talk.notes || '';
+      } else {
+        // New scheduling
+        const submission = submissions.find(s => s.id === submissionId);
+        document.getElementById('modal-title').textContent = 'Schedule Talk';
+        document.getElementById('modal-talk-id').value = '';
+        document.getElementById('modal-submission-id').value = submissionId;
+        form.reset();
+
+        // Populate title and abstract from submission
+        if (submission) {
+          document.getElementById('modal-title-edit').value = submission.talkTitle || '';
+          document.getElementById('modal-abstract-edit').value = submission.talkAbstract || '';
+        }
+
+        // Set default times using smart calendar
+        const nextTime = getNextAvailableTime();
+        const end = new Date(nextTime);
+        end.setMinutes(end.getMinutes() + 45);
+
+        document.getElementById('modal-start').value = nextTime.toISOString().slice(0, 16);
+        document.getElementById('modal-end').value = end.toISOString().slice(0, 16);
+      }
+
+      modal.classList.add('active');
+    }
+
+    function editScheduledTalk(talkId) {
+      const talk = scheduledTalks.find(t => t.id === talkId);
+      if (talk.submission_id) {
+        showScheduleModal(talk.submission_id, talkId);
+      } else {
+        // Edit standalone event
+        showEditEventModal(talkId);
+      }
+    }
+
+    function showEditEventModal(talkId) {
+      const talk = scheduledTalks.find(t => t.id === talkId);
+      const modal = document.getElementById('event-modal');
+
+      document.getElementById('event-modal').querySelector('h3').textContent = 'Edit Event';
+      document.getElementById('event-title').value = talk.event_title || '';
+      document.getElementById('event-speaker').value = talk.event_speaker || '';
+      document.getElementById('event-affiliation').value = talk.event_affiliation || '';
+      document.getElementById('event-abstract').value = talk.event_abstract || '';
+      document.getElementById('event-room').value = talk.room_id || '';
+      document.getElementById('event-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
+      document.getElementById('event-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+      document.getElementById('event-publish').checked = talk.publish_to_website;
+
+      document.getElementById('event-form').dataset.talkId = talkId;
+      modal.classList.add('active');
+    }
+
+    function showEventModal() {
+      const modal = document.getElementById('event-modal');
+      document.getElementById('event-modal').querySelector('h3').textContent = 'Add Standalone Event';
+      document.getElementById('event-form').reset();
+      delete document.getElementById('event-form').dataset.talkId;
+
+      // Set default times using smart calendar
+      const nextTime = getNextAvailableTime();
+      const end = new Date(nextTime);
+      end.setMinutes(end.getMinutes() + 30);
+
+      document.getElementById('event-start').value = nextTime.toISOString().slice(0, 16);
+      document.getElementById('event-end').value = end.toISOString().slice(0, 16);
+
+      modal.classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('schedule-modal').classList.remove('active');
+    }
+
+    function closeEventModal() {
+      document.getElementById('event-modal').classList.remove('active');
+    }
+
+    // Form submissions
+    document.getElementById('schedule-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const talkId = document.getElementById('modal-talk-id').value;
+      const data = {
+        submission_id: document.getElementById('modal-submission-id').value || null,
+        event_title: document.getElementById('modal-title-edit').value,
+        event_abstract: document.getElementById('modal-abstract-edit').value,
+        room_id: document.getElementById('modal-room').value,
+        start_time: document.getElementById('modal-start').value,
+        end_time: document.getElementById('modal-end').value,
+        publish_to_website: document.getElementById('modal-publish').checked,
+        notes: document.getElementById('modal-notes').value
+      };
+
+      try {
+        const url = talkId
+          ? `/api/scheduling/schedule/${talkId}`
+          : '/api/scheduling/schedule';
+        const method = talkId ? 'PATCH' : 'POST';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          closeModal();
+          await loadData();
+        } else {
+          alert('Failed to save schedule');
+        }
+      } catch (error) {
+        console.error('Error saving schedule:', error);
+        alert('Failed to save schedule');
+      }
+    });
+
+    document.getElementById('event-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const talkId = e.target.dataset.talkId;
+      const data = {
+        event_title: document.getElementById('event-title').value,
+        event_speaker: document.getElementById('event-speaker').value,
+        event_affiliation: document.getElementById('event-affiliation').value,
+        event_abstract: document.getElementById('event-abstract').value,
+        room_id: document.getElementById('event-room').value,
+        start_time: document.getElementById('event-start').value,
+        end_time: document.getElementById('event-end').value,
+        publish_to_website: document.getElementById('event-publish').checked
+      };
+
+      try {
+        const url = talkId
+          ? `/api/scheduling/schedule/${talkId}`
+          : '/api/scheduling/schedule';
+        const method = talkId ? 'PATCH' : 'POST';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          closeEventModal();
+          await loadData();
+        } else {
+          alert('Failed to save event');
+        }
+      } catch (error) {
+        console.error('Error saving event:', error);
+        alert('Failed to save event');
+      }
+    });
+
+    async function deleteTalk(event, talkId) {
+      event.stopPropagation();
+      if (!confirm('Are you sure you want to remove this from the schedule?')) return;
+
+      try {
+        const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          alert('Failed to delete');
+        }
+      } catch (error) {
+        console.error('Error deleting:', error);
+        alert('Failed to delete');
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById(`${tab}-tab`).classList.add('active');
+    }
+
+    function changeViewMode() {
+      // Placeholder for view mode changes
+      alert('View mode switching coming soon!');
+    }
+
+    // Publish functions
+    async function togglePublish(event, talkId) {
+      event.stopPropagation();
+      try {
+        const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'published' }),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          alert('Failed to publish');
+        }
+      } catch (error) {
+        console.error('Error publishing:', error);
+        alert('Failed to publish');
+      }
+    }
+
+    async function unpublishTalk(event, talkId) {
+      event.stopPropagation();
+      if (!confirm('Are you sure you want to unpublish this event?')) return;
+
+      try {
+        const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'scheduled' }),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          alert('Failed to unpublish');
+        }
+      } catch (error) {
+        console.error('Error unpublishing:', error);
+        alert('Failed to unpublish');
+      }
+    }
+
+    async function publishSelected() {
+      const checkboxes = document.querySelectorAll('.talk-checkbox:checked');
+      const talkIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.talkId));
+
+      if (talkIds.length === 0) {
+        alert('Please select talks to publish');
+        return;
+      }
+
+      if (!confirm(`Publish ${talkIds.length} selected talk(s)?`)) return;
+
+      try {
+        const results = await Promise.all(
+          talkIds.map(id =>
+            fetch(`/api/scheduling/schedule/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'published' }),
+              credentials: 'same-origin'
+            })
+          )
+        );
+
+        if (results.every(r => r.ok)) {
+          await loadData();
+          document.getElementById('select-all-checkbox').checked = false;
+        } else {
+          alert('Some talks failed to publish');
+        }
+      } catch (error) {
+        console.error('Error batch publishing:', error);
+        alert('Failed to publish talks');
+      }
+    }
+
+    function toggleSelectAll() {
+      const selectAll = document.getElementById('select-all-checkbox');
+      const checkboxes = document.querySelectorAll('.talk-checkbox');
+      checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const count = document.querySelectorAll('.talk-checkbox:checked').length;
+      const countEl = document.getElementById('selected-count');
+      countEl.textContent = count > 0 ? `${count} selected` : '';
+    }
+
+    // Update selected count when checkboxes change
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('talk-checkbox')) {
+        updateSelectedCount();
+      }
+    });
+
+    // Smart calendar - auto-fill based on last talk
+    function getNextAvailableTime() {
+      if (scheduledTalks.length === 0) {
+        // No talks yet, suggest next hour
+        const now = new Date();
+        now.setHours(now.getHours() + 1, 0, 0, 0);
+        return now;
+      }
+
+      // Find the latest end time
+      const latestTalk = scheduledTalks.reduce((latest, talk) => {
+        const talkEnd = new Date(talk.end_time);
+        const latestEnd = new Date(latest.end_time);
+        return talkEnd > latestEnd ? talk : latest;
+      });
+
+      // Add 15 minutes buffer after last talk
+      const nextTime = new Date(latestTalk.end_time);
+      nextTime.setMinutes(nextTime.getMinutes() + 15);
+      return nextTime;
+    }
+
+    // Initialize
+    loadData();
+
+    // Close modals on outside click
+    document.getElementById('schedule-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'schedule-modal') closeModal();
+    });
+    document.getElementById('event-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'event-modal') closeEventModal();
+    });
+  </script>
+</body>
+</html>

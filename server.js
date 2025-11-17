@@ -24,7 +24,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"]
     }
   }
@@ -64,9 +65,11 @@ app.use('/api/submit', formLimiter);
 // Routes
 const registrationRoutes = require('./src/routes/registration');
 const adminRoutes = require('./src/routes/admin');
+const schedulingRoutes = require('./src/routes/scheduling');
 
 app.use('/', registrationRoutes);
 app.use('/admin', adminRoutes);
+app.use('/api/scheduling', schedulingRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -163,4 +163,199 @@ router.post('/delete/:id', isAuthenticated, async (req, res) => {
   }
 });
 
+// GET /admin/scheduling - Show scheduling page
+router.get('/scheduling', isAuthenticated, async (req, res) => {
+  try {
+    res.render('admin-scheduling', {
+      title: 'Schedule Management'
+    });
+  } catch (error) {
+    console.error('Error loading scheduling page:', error);
+    res.status(500).render('error', {
+      title: 'Error',
+      message: 'Failed to load scheduling page',
+      statusCode: 500
+    });
+  }
+});
+
+// GET /admin/scheduling/export - Export schedule to Excel
+router.get('/scheduling/export', isAuthenticated, async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const scheduledTalks = await db.getAllScheduledTalks();
+
+    // Create a new workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Schedule');
+
+    // Define columns matching the format from the Excel file
+    worksheet.columns = [
+      { header: 'Start', key: 'start', width: 20 },
+      { header: 'End', key: 'end', width: 20 },
+      { header: 'Speaker', key: 'speaker', width: 30 },
+      { header: 'Title', key: 'title', width: 50 },
+      { header: 'Affiliation', key: 'affiliation', width: 40 },
+      { header: 'Abstract', key: 'abstract', width: 80 },
+      { header: 'Room', key: 'room', width: 30 },
+      { header: 'Tag', key: 'tag', width: 15 }
+    ];
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD4AF37' } // Gold color matching IML branding
+    };
+
+    // Add data rows
+    scheduledTalks.forEach(talk => {
+      const isEvent = !talk.submission_id;
+      const speaker = isEvent
+        ? (talk.event_speaker || '')
+        : `${talk.first_name} ${talk.last_name}`;
+      const title = isEvent ? talk.event_title : talk.talk_title;
+      const affiliation = isEvent ? (talk.event_affiliation || '') : talk.affiliation;
+      const abstract = isEvent ? (talk.event_abstract || '') : talk.talk_abstract;
+
+      worksheet.addRow({
+        start: new Date(talk.start_time).toLocaleString('en-US'),
+        end: new Date(talk.end_time).toLocaleString('en-US'),
+        speaker: speaker,
+        title: title,
+        affiliation: affiliation,
+        abstract: abstract,
+        room: talk.room_name || '',
+        tag: talk.publish_to_website ? 'website' : ''
+      });
+    });
+
+    // Enable text wrapping
+    worksheet.getColumn('abstract').alignment = { wrapText: true, vertical: 'top' };
+    worksheet.getColumn('title').alignment = { wrapText: true, vertical: 'top' };
+
+    // Set response headers
+    const filename = `IML_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+
+    console.log(`Schedule export generated: ${filename} (${scheduledTalks.length} talks)`);
+  } catch (error) {
+    console.error('Error exporting schedule:', error);
+    res.status(500).render('error', {
+      title: 'Export Error',
+      message: 'Failed to generate schedule Excel file',
+      statusCode: 500
+    });
+  }
+});
+
+// GET /admin/scheduling/export-app - Export schedule for event app
+router.get('/scheduling/export-app', isAuthenticated, async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const scheduledTalks = await db.getAllScheduledTalks();
+
+    // Filter only published talks
+    const publishedTalks = scheduledTalks.filter(talk => talk.status === 'published');
+
+    // Create a new workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sheet1');
+
+    // Define columns matching the event app format
+    worksheet.columns = [
+      { header: 'Start date', key: 'start_date', width: 15 },
+      { header: 'Start time', key: 'start_time', width: 12 },
+      { header: 'End date', key: 'end_date', width: 15 },
+      { header: 'End time', key: 'end_time', width: 12 },
+      { header: 'Title', key: 'title', width: 60 },
+      { header: 'Description', key: 'description', width: 80 },
+      { header: 'Track', key: 'track', width: 15 },
+      { header: 'Tag(s)', key: 'tags', width: 15 },
+      { header: 'Room location', key: 'room', width: 30 },
+      { header: 'Group(s)', key: 'groups', width: 15 }
+    ];
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true };
+
+    // Add data rows
+    publishedTalks.forEach(talk => {
+      const isEvent = !talk.submission_id;
+      const speaker = isEvent
+        ? (talk.event_speaker || '')
+        : `${talk.first_name} ${talk.last_name}`;
+      const title = isEvent ? talk.event_title : talk.talk_title;
+      const affiliation = isEvent ? (talk.event_affiliation || '') : talk.affiliation;
+      const abstract = isEvent ? (talk.event_abstract || '') : talk.talk_abstract;
+
+      const startDate = new Date(talk.start_time);
+      const endDate = new Date(talk.end_time);
+
+      // Format Title: "Speaker Name: Talk Title"
+      const formattedTitle = speaker ? `${speaker}: ${title}` : title;
+
+      // Format Description with HTML
+      let formattedDescription = '';
+      if (speaker) {
+        formattedDescription = `<b>Speaker</b><br/>${speaker}`;
+        if (affiliation) {
+          formattedDescription += `, ${affiliation}`;
+        }
+        formattedDescription += '<br/><br/>';
+      }
+      if (abstract) {
+        formattedDescription += `<b>Abstract</b><br/>${abstract}`;
+      }
+
+      worksheet.addRow({
+        start_date: startDate,
+        start_time: startDate,
+        end_date: endDate,
+        end_time: endDate,
+        title: formattedTitle,
+        description: formattedDescription,
+        track: '',
+        tags: talk.publish_to_website ? 'website' : '',
+        room: talk.room_name || '',
+        groups: ''
+      });
+    });
+
+    // Format date/time columns
+    worksheet.getColumn('start_date').numFmt = 'yyyy-mm-dd';
+    worksheet.getColumn('end_date').numFmt = 'yyyy-mm-dd';
+    worksheet.getColumn('start_time').numFmt = 'hh:mm';
+    worksheet.getColumn('end_time').numFmt = 'hh:mm';
+
+    // Enable text wrapping
+    worksheet.getColumn('description').alignment = { wrapText: true, vertical: 'top' };
+    worksheet.getColumn('title').alignment = { wrapText: true, vertical: 'top' };
+
+    // Set response headers
+    const filename = `IML_EventApp_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+
+    console.log(`Event app export generated: ${filename} (${publishedTalks.length} published talks)`);
+  } catch (error) {
+    console.error('Error exporting schedule for event app:', error);
+    res.status(500).render('error', {
+      title: 'Export Error',
+      message: 'Failed to generate event app Excel file',
+      statusCode: 500
+    });
+  }
+});
+
 module.exports = router;
