@@ -66,10 +66,12 @@ app.use('/api/submit', formLimiter);
 const registrationRoutes = require('./src/routes/registration');
 const adminRoutes = require('./src/routes/admin');
 const schedulingRoutes = require('./src/routes/scheduling');
+const kleinConverterRoutes = require('./src/routes/kleinConverter');
 
 app.use('/', registrationRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/scheduling', schedulingRoutes);
+app.use('/', kleinConverterRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
