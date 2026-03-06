@@ -47,7 +47,7 @@
 
 ## Admin Routes
 **Base Path:** `/admin`
-**Authentication:** All routes require admin session (except login)
+**Authentication:** Routes require admin session unless noted. Scheduling page accessible to both admin and external users.
 
 ### Authentication
 
@@ -112,8 +112,9 @@
 
 #### `GET /admin/scheduling`
 **Description:** Display the scheduling management interface
-**Authentication:** Required
-**Response:** Renders `admin-scheduling.ejs` view
+**Authentication:** Required (admin or external)
+**Response:** Renders `admin-scheduling.ejs` view with `role` variable (`admin` or `external`)
+**Note:** External users see a restricted UI without publish, lock, export, or batch actions
 
 #### `GET /admin/scheduling/export`
 **Description:** Export schedule to Excel file in the format used for website publishing
@@ -152,8 +153,9 @@
 
 ## Scheduling API Routes
 **Base Path:** `/api/scheduling`
-**Authentication:** All routes require admin session
+**Authentication:** All routes require authenticated session (admin or external). Lock toggle requires admin.
 **Content-Type:** `application/json`
+**Role restrictions on PATCH:** External users cannot change `is_locked`, `publish_to_website`, or `status` fields (returns 403).
 
 ### Rooms
 
@@ -279,8 +281,27 @@
 **Response:** Updated scheduled talk object
 **Status Codes:**
 - `200` - Updated successfully
+- `403` - Item is locked (only `is_locked`, `publish_to_website`, `status` changes allowed on locked items)
+- `404` - Scheduled talk not found
 - `409` - Scheduling conflict detected
 - `500` - Update failed
+
+#### `PATCH /api/scheduling/schedule/:id/lock`
+**Description:** Toggle lock state on a single scheduled item
+**Authentication:** Required
+**URL Parameters:**
+- `id` - Scheduled talk ID
+**Body Parameters:**
+```json
+{
+  "is_locked": true
+}
+```
+**Response:** Updated scheduled talk object
+**Status Codes:**
+- `200` - Updated successfully
+- `400` - `is_locked` must be a boolean
+- `404` - Scheduled talk not found
 
 #### `DELETE /api/scheduling/schedule/:id`
 **Description:** Remove a talk from the schedule
@@ -295,7 +316,93 @@
 ```
 **Status Codes:**
 - `200` - Deleted successfully
+- `403` - Item is locked and cannot be deleted
 - `404` - Scheduled talk not found
+
+### Scheduling Blocks
+
+#### `POST /api/scheduling/blocks`
+**Description:** Create a scheduling block (single or repeating)
+**Authentication:** Required
+**Body Parameters:**
+```json
+{
+  "event_title": "string (required)",
+  "room_id": 1,
+  "start_time": "datetime (required)",
+  "end_time": "datetime (required)",
+  "is_locked": true,
+  "notes": "string",
+  "repeat": {
+    "pattern": "daily|weekdays|weekly|custom",
+    "days": [1, 3],
+    "until": "date (required if repeat)"
+  }
+}
+```
+**Notes:**
+- `room_id` is optional for blocks
+- `repeat` is optional; without it creates a single block
+- `repeat.days` only used with `pattern: "custom"` (0=Sun, 1=Mon, ..., 6=Sat)
+- Checks conflicts for all instances before creating (all-or-nothing)
+**Response (single):** Created block object
+**Response (repeating):**
+```json
+{
+  "repeat_group_id": "uuid",
+  "count": 10,
+  "blocks": [...]
+}
+```
+**Status Codes:**
+- `201` - Created successfully
+- `400` - Missing required fields or no matching dates
+- `409` - Scheduling conflict detected
+
+#### `PATCH /api/scheduling/blocks/group/:groupId`
+**Description:** Update all instances in a repeat group
+**Authentication:** Required
+**URL Parameters:**
+- `groupId` - Repeat group UUID
+**Body Parameters:** (all optional)
+```json
+{
+  "event_title": "string",
+  "room_id": 1,
+  "is_locked": true,
+  "notes": "string",
+  "publish_to_website": true,
+  "status": "string"
+}
+```
+**Response:**
+```json
+{
+  "count": 10,
+  "updated": [...]
+}
+```
+**Status Codes:**
+- `200` - Updated successfully
+- `404` - Repeat group not found
+
+#### `DELETE /api/scheduling/blocks/group/:groupId`
+**Description:** Delete all instances in a repeat group
+**Authentication:** Required
+**URL Parameters:**
+- `groupId` - Repeat group UUID
+**Query Parameters:**
+- `force` - Set to `true` to delete even if some instances are locked
+**Response:**
+```json
+{
+  "message": "Repeat group deleted successfully"
+}
+```
+**Status Codes:**
+- `200` - Deleted successfully
+- `403` - Some items in the series are locked (use `?force=true`)
+- `404` - Repeat group not found
 
 ### Conflict Detection
 
@@ -351,13 +458,88 @@
 
 ---
 
+## Magic Link Routes
+
+### External Access
+
+#### `GET /schedule/:token`
+**Description:** Magic link login for external users — validates token and redirects to scheduling page
+**Authentication:** None (token-based)
+**URL Parameters:**
+- `token` - 64-character hex token
+**Response:** Redirects to `/admin/scheduling` on success
+**Status Codes:**
+- `302` - Valid token, redirect to scheduling
+- `403` - Invalid or expired token
+
+### Magic Link Management (Admin Only)
+
+#### `GET /admin/magic-links`
+**Description:** Get all magic links
+**Authentication:** Admin only
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "token": "string",
+    "label": "string",
+    "is_active": true,
+    "created_at": "datetime",
+    "expires_at": "datetime"
+  }
+]
+```
+
+#### `POST /admin/magic-links`
+**Description:** Create a new magic link
+**Authentication:** Admin only
+**Body Parameters:**
+```json
+{
+  "label": "string (optional)",
+  "expires_at": "datetime (optional)"
+}
+```
+**Response:** Created magic link object
+**Status Codes:**
+- `201` - Created successfully
+
+#### `POST /admin/magic-links/:id/deactivate`
+**Description:** Deactivate a magic link
+**Authentication:** Admin only
+**URL Parameters:**
+- `id` - Magic link ID
+**Response:**
+```json
+{
+  "message": "Magic link deactivated"
+}
+```
+**Status Codes:**
+- `200` - Deactivated successfully
+- `404` - Magic link not found
+
+---
+
 ## Authentication & Security
 
-### Admin Authentication
-- Uses session-based authentication with `express-session`
+### Two User Types
+
+#### Admin
+- Full access to all features: dashboard, submissions, scheduling, export, publish, lock, magic link management
+- Authenticated via password login at `/admin/login`
+
+#### External
+- Access to scheduling page only (create/edit/delete events and blocks)
+- Cannot publish, lock/unlock, export, or manage submissions
+- Authenticated via magic link at `/schedule/:token`
+
+### Session-Based Authentication
+- Uses `express-session`
 - Session cookie: `connect.sid` (HTTP-only, secure in production)
 - Session lifetime: 24 hours
-- Password verification: Plain text comparison (development), should use bcrypt in production
+- Admin password verification: Plain text comparison (development), should use bcrypt in production
 
 ### Rate Limiting
 - Form submissions: 5 requests per 15 minutes per IP address
@@ -404,11 +586,19 @@ Renders `error.ejs` view with:
 ### Tables
 - `talk_submissions` - Research talk proposals
 - `rooms` - Available rooms for talks
-- `scheduled_talks` - Scheduled talks and events
+- `scheduled_talks` - Scheduled talks, events, and blocks
+  - `is_locked` (boolean) - When true, item cannot be edited or deleted (publish still allowed by admin)
+  - `is_block` (boolean) - Marks item as a schedule block (distinct visual treatment)
+  - `repeat_group_id` (varchar) - UUID linking instances of a repeating block series
+- `magic_links` - External user access tokens
+  - `token` (varchar) - 64-character hex token
+  - `label` (varchar) - Optional descriptive label
+  - `is_active` (boolean) - Can be deactivated by admin
+  - `expires_at` (timestamp) - Optional expiration date
 
 For detailed schema information, see `src/config/database.js`
 
 ---
 
-**Last Updated:** 2025-11-06
-**Version:** 1.0.0
+**Last Updated:** 2026-03-06
+**Version:** 1.2.0

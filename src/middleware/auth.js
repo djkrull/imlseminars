@@ -1,11 +1,30 @@
 const bcrypt = require('bcrypt');
+const db = require('../config/database');
 
-// Check if user is authenticated
+// Check if user is authenticated (admin or external)
 function isAuthenticated(req, res, next) {
-  if (req.session && req.session.isAdmin) {
+  if (req.session && (req.session.isAdmin || req.session.isExternal)) {
     return next();
   }
   res.redirect('/admin/login');
+}
+
+// Check if user is admin only
+function isAdmin(req, res, next) {
+  if (req.session && req.session.isAdmin) {
+    return next();
+  }
+  if (req.session && req.session.isExternal) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  res.redirect('/admin/login');
+}
+
+// Get current user role from session
+function getUserRole(req) {
+  if (req.session && req.session.isAdmin) return 'admin';
+  if (req.session && req.session.isExternal) return 'external';
+  return null;
 }
 
 // Verify admin password
@@ -37,6 +56,8 @@ async function login(req, res) {
 
     if (isValid) {
       req.session.isAdmin = true;
+      req.session.isExternal = false;
+      req.session.role = 'admin';
       res.redirect('/admin/dashboard');
     } else {
       res.render('admin-login', {
@@ -53,6 +74,35 @@ async function login(req, res) {
   }
 }
 
+// Magic link login handler
+async function magicLinkLogin(req, res) {
+  try {
+    const { token } = req.params;
+    const link = await db.validateMagicLink(token);
+
+    if (!link) {
+      return res.status(403).render('error', {
+        title: 'Invalid Link',
+        message: 'This scheduling link is invalid or has expired.',
+        statusCode: 403
+      });
+    }
+
+    req.session.isAdmin = false;
+    req.session.isExternal = true;
+    req.session.role = 'external';
+    req.session.magicLinkId = link.id;
+    res.redirect('/admin/scheduling');
+  } catch (error) {
+    console.error('Magic link login error:', error);
+    res.status(500).render('error', {
+      title: 'Error',
+      message: 'An error occurred',
+      statusCode: 500
+    });
+  }
+}
+
 // Logout route handler
 function logout(req, res) {
   req.session.destroy((err) => {
@@ -65,7 +115,10 @@ function logout(req, res) {
 
 module.exports = {
   isAuthenticated,
+  isAdmin,
+  getUserRole,
   verifyAdminPassword,
   login,
+  magicLinkLogin,
   logout
 };

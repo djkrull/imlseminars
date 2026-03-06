@@ -1,13 +1,18 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const ExcelJS = require('exceljs');
-const { isAuthenticated, login, logout } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, getUserRole, login, logout } = require('../middleware/auth');
 const Talk = require('../models/Talk');
+const db = require('../config/database');
 
 // GET /admin/login - Show login page
 router.get('/login', (req, res) => {
   if (req.session && req.session.isAdmin) {
     return res.redirect('/admin/dashboard');
+  }
+  if (req.session && req.session.isExternal) {
+    return res.redirect('/admin/scheduling');
   }
   res.render('admin-login', {
     title: 'Admin Login',
@@ -21,8 +26,8 @@ router.post('/login', login);
 // GET /admin/logout - Handle logout
 router.get('/logout', logout);
 
-// GET /admin or /admin/dashboard - Show dashboard
-router.get(['/', '/dashboard'], isAuthenticated, async (req, res) => {
+// GET /admin or /admin/dashboard - Show dashboard (admin only)
+router.get(['/', '/dashboard'], isAdmin, async (req, res) => {
   try {
     const talks = await Talk.findAll();
 
@@ -41,8 +46,8 @@ router.get(['/', '/dashboard'], isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /admin/export - Export to Excel
-router.get('/export', isAuthenticated, async (req, res) => {
+// GET /admin/export - Export to Excel (admin only)
+router.get('/export', isAdmin, async (req, res) => {
   try {
     const talks = await Talk.findAll();
 
@@ -112,8 +117,8 @@ router.get('/export', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /admin/view/:id - View single submission
-router.get('/view/:id', isAuthenticated, async (req, res) => {
+// GET /admin/view/:id - View single submission (admin only)
+router.get('/view/:id', isAdmin, async (req, res) => {
   try {
     const talk = await Talk.findById(req.params.id);
 
@@ -139,8 +144,8 @@ router.get('/view/:id', isAuthenticated, async (req, res) => {
   }
 });
 
-// DELETE /admin/delete/:id - Delete submission
-router.post('/delete/:id', isAuthenticated, async (req, res) => {
+// DELETE /admin/delete/:id - Delete submission (admin only)
+router.post('/delete/:id', isAdmin, async (req, res) => {
   try {
     const success = await Talk.delete(req.params.id);
 
@@ -163,11 +168,12 @@ router.post('/delete/:id', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /admin/scheduling - Show scheduling page
+// GET /admin/scheduling - Show scheduling page (admin + external)
 router.get('/scheduling', isAuthenticated, async (req, res) => {
   try {
     res.render('admin-scheduling', {
-      title: 'Schedule Management'
+      title: 'Schedule Management',
+      role: getUserRole(req)
     });
   } catch (error) {
     console.error('Error loading scheduling page:', error);
@@ -179,10 +185,9 @@ router.get('/scheduling', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /admin/scheduling/export - Export schedule to Excel
-router.get('/scheduling/export', isAuthenticated, async (req, res) => {
+// GET /admin/scheduling/export - Export schedule to Excel (admin only)
+router.get('/scheduling/export', isAdmin, async (req, res) => {
   try {
-    const db = require('../config/database');
     const scheduledTalks = await db.getAllScheduledTalks();
 
     // Create a new workbook
@@ -255,10 +260,9 @@ router.get('/scheduling/export', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /admin/scheduling/export-app - Export schedule for event app
-router.get('/scheduling/export-app', isAuthenticated, async (req, res) => {
+// GET /admin/scheduling/export-app - Export schedule for event app (admin only)
+router.get('/scheduling/export-app', isAdmin, async (req, res) => {
   try {
-    const db = require('../config/database');
     const scheduledTalks = await db.getAllScheduledTalks();
 
     // Filter only published talks
@@ -355,6 +359,47 @@ router.get('/scheduling/export-app', isAuthenticated, async (req, res) => {
       message: 'Failed to generate event app Excel file',
       statusCode: 500
     });
+  }
+});
+
+// --- Magic Link Management (admin only) ---
+
+// GET /admin/magic-links - Get all magic links
+router.get('/magic-links', isAdmin, async (req, res) => {
+  try {
+    const links = await db.getAllMagicLinks();
+    res.json(links);
+  } catch (error) {
+    console.error('Error fetching magic links:', error);
+    res.status(500).json({ error: 'Failed to fetch magic links' });
+  }
+});
+
+// POST /admin/magic-links - Create a new magic link
+router.post('/magic-links', isAdmin, async (req, res) => {
+  try {
+    const { label, expires_at } = req.body;
+    const token = crypto.randomBytes(32).toString('hex');
+    const link = await db.createMagicLink(token, label, expires_at || null);
+    res.status(201).json(link);
+  } catch (error) {
+    console.error('Error creating magic link:', error);
+    res.status(500).json({ error: 'Failed to create magic link' });
+  }
+});
+
+// POST /admin/magic-links/:id/deactivate - Deactivate a magic link
+router.post('/magic-links/:id/deactivate', isAdmin, async (req, res) => {
+  try {
+    const success = await db.deactivateMagicLink(req.params.id);
+    if (success) {
+      res.json({ message: 'Magic link deactivated' });
+    } else {
+      res.status(404).json({ error: 'Magic link not found' });
+    }
+  } catch (error) {
+    console.error('Error deactivating magic link:', error);
+    res.status(500).json({ error: 'Failed to deactivate magic link' });
   }
 });
 

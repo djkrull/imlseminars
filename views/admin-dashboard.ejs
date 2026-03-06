@@ -99,10 +99,164 @@
       <% } %>
     </div>
 
+    <!-- Magic Links Management -->
+    <div style="margin-top: 3rem;">
+      <div class="admin-header">
+        <h2 class="page-title" style="margin: 0;">External Scheduling Links</h2>
+        <button class="btn btn-primary" onclick="showCreateLinkModal()">Create New Link</button>
+      </div>
+      <p style="color: #666; margin-bottom: 1rem;">
+        Share these links with external users to give them access to the scheduling page. They can create and edit events but cannot publish, lock, or export.
+      </p>
+      <div class="table-container">
+        <table class="table" id="magic-links-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Link</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Expires</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="magic-links-body">
+            <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Create Link Modal -->
+    <div id="link-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 8px; padding: 2rem; max-width: 500px; width: 90%;">
+        <h3 style="margin-top: 0; color: #003E7E;">Create Scheduling Link</h3>
+        <form id="create-link-form">
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #003E7E;">Label (optional)</label>
+            <input type="text" id="link-label" placeholder="e.g., Spring 2026 Program Committee" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #003E7E;">Expires (optional)</label>
+            <input type="datetime-local" id="link-expires" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary">Create Link</button>
+            <button type="button" class="btn btn-secondary" onclick="closeLinkModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="btn-group" style="margin-top: 2rem;">
       <a href="/" class="btn btn-primary">View Registration Form</a>
     </div>
   </main>
+
+  <script>
+    // Magic Links Management
+    async function loadMagicLinks() {
+      try {
+        const response = await fetch('/admin/magic-links', { credentials: 'same-origin' });
+        const links = await response.json();
+        const tbody = document.getElementById('magic-links-body');
+
+        if (links.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No links created yet</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = links.map(link => {
+          const url = `${window.location.origin}/schedule/${link.token}`;
+          const isActive = link.is_active && (!link.expires_at || new Date(link.expires_at) > new Date());
+          const statusText = !link.is_active ? 'Deactivated' : (link.expires_at && new Date(link.expires_at) <= new Date() ? 'Expired' : 'Active');
+          const statusColor = statusText === 'Active' ? '#228B22' : '#DC143C';
+
+          return `<tr>
+            <td>${link.label || '<em>No label</em>'}</td>
+            <td>
+              <code style="font-size: 0.8rem; word-break: break-all;">${url}</code>
+              <button onclick="copyLink('${url}')" style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; background: white;">Copy</button>
+            </td>
+            <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
+            <td>${new Date(link.created_at).toLocaleDateString()}</td>
+            <td>${link.expires_at ? new Date(link.expires_at).toLocaleDateString() : 'Never'}</td>
+            <td>
+              ${link.is_active
+                ? `<button onclick="deactivateLink(${link.id})" class="btn btn-sm" style="background: #DC143C; color: white; border: none; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer;">Deactivate</button>`
+                : ''}
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (error) {
+        console.error('Error loading magic links:', error);
+      }
+    }
+
+    function showCreateLinkModal() {
+      const modal = document.getElementById('link-modal');
+      modal.style.display = 'flex';
+      document.getElementById('create-link-form').reset();
+    }
+
+    function closeLinkModal() {
+      document.getElementById('link-modal').style.display = 'none';
+    }
+
+    function copyLink(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Link copied to clipboard!');
+      });
+    }
+
+    async function deactivateLink(id) {
+      if (!confirm('Deactivate this link? Users with this link will no longer be able to access the scheduling page.')) return;
+      try {
+        const response = await fetch(`/admin/magic-links/${id}/deactivate`, {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+        if (response.ok) {
+          loadMagicLinks();
+        } else {
+          alert('Failed to deactivate link');
+        }
+      } catch (error) {
+        console.error('Error deactivating link:', error);
+      }
+    }
+
+    document.getElementById('create-link-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('link-label').value;
+      const expiresAt = document.getElementById('link-expires').value;
+
+      try {
+        const response = await fetch('/admin/magic-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, expires_at: expiresAt || null }),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          closeLinkModal();
+          loadMagicLinks();
+        } else {
+          alert('Failed to create link');
+        }
+      } catch (error) {
+        console.error('Error creating link:', error);
+      }
+    });
+
+    document.getElementById('link-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'link-modal') closeLinkModal();
+    });
+
+    // Load links on page load
+    loadMagicLinks();
+  </script>
 
   <!-- Footer -->
   <footer class="footer">

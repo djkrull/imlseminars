@@ -79,6 +79,21 @@ async function createTables() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Add block/lock columns if they don't exist
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT false;
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS is_block BOOLEAN DEFAULT false;
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS repeat_group_id VARCHAR(36) DEFAULT NULL;
+
+    -- Magic links for external users
+    CREATE TABLE IF NOT EXISTS magic_links (
+      id SERIAL PRIMARY KEY,
+      token VARCHAR(64) NOT NULL UNIQUE,
+      label VARCHAR(255),
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP
+    );
+
     -- Insert default rooms if they don't exist
     INSERT INTO rooms (name, building, capacity) VALUES
       ('Kuskvillan', 'Main Campus', 50),
@@ -212,13 +227,13 @@ async function createScheduledTalk(data) {
     const query = `
       INSERT INTO scheduled_talks
       (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-       start_time, end_time, status, publish_to_website, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
     const values = [
       data.submission_id || null,
-      data.room_id,
+      data.room_id || null,
       data.event_title || null,
       data.event_speaker || null,
       data.event_affiliation || null,
@@ -227,7 +242,10 @@ async function createScheduledTalk(data) {
       data.end_time,
       data.status || 'scheduled',
       data.publish_to_website || false,
-      data.notes || null
+      data.notes || null,
+      data.is_locked || false,
+      data.is_block || false,
+      data.repeat_group_id || null
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -239,36 +257,46 @@ async function updateScheduledTalk(id, data) {
   if (useInMemoryStorage) {
     return { id, ...data };
   } else {
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    const fields = [
+      ['room_id', data.room_id],
+      ['event_title', data.event_title],
+      ['event_speaker', data.event_speaker],
+      ['event_affiliation', data.event_affiliation],
+      ['event_abstract', data.event_abstract],
+      ['start_time', data.start_time],
+      ['end_time', data.end_time],
+      ['status', data.status],
+      ['publish_to_website', data.publish_to_website],
+      ['notes', data.notes],
+      ['is_locked', data.is_locked]
+    ];
+
+    for (const [col, val] of fields) {
+      if (val !== undefined) {
+        setClauses.push(`${col} = $${paramIndex}`);
+        values.push(val);
+        paramIndex++;
+      }
+    }
+
+    if (setClauses.length === 0) {
+      const current = await pool.query('SELECT * FROM scheduled_talks WHERE id = $1', [id]);
+      return current.rows[0];
+    }
+
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
     const query = `
       UPDATE scheduled_talks
-      SET
-        room_id = COALESCE($1, room_id),
-        event_title = COALESCE($2, event_title),
-        event_speaker = COALESCE($3, event_speaker),
-        event_affiliation = COALESCE($4, event_affiliation),
-        event_abstract = COALESCE($5, event_abstract),
-        start_time = COALESCE($6, start_time),
-        end_time = COALESCE($7, end_time),
-        status = COALESCE($8, status),
-        publish_to_website = COALESCE($9, publish_to_website),
-        notes = COALESCE($10, notes),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramIndex}
       RETURNING *;
     `;
-    const values = [
-      data.room_id,
-      data.event_title,
-      data.event_speaker,
-      data.event_affiliation,
-      data.event_abstract,
-      data.start_time,
-      data.end_time,
-      data.status,
-      data.publish_to_website,
-      data.notes,
-      id
-    ];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -305,6 +333,165 @@ async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = 
   }
 }
 
+// Get a single scheduled talk by ID
+async function getScheduledTalkById(id) {
+  if (useInMemoryStorage) {
+    return null;
+  } else {
+    const query = 'SELECT * FROM scheduled_talks WHERE id = $1';
+    const result = await pool.query(query, [id]);
+    return result.rows[0];
+  }
+}
+
+// Create multiple scheduled talks in a transaction (for repeating blocks)
+async function createScheduledTalksInBatch(items) {
+  if (useInMemoryStorage) {
+    return items.map((item, i) => ({ id: i + 1, ...item }));
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const results = [];
+    for (const data of items) {
+      const query = `
+        INSERT INTO scheduled_talks
+        (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
+         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *;
+      `;
+      const values = [
+        null,
+        data.room_id || null,
+        data.event_title || null,
+        data.event_speaker || null,
+        data.event_affiliation || null,
+        data.event_abstract || null,
+        data.start_time,
+        data.end_time,
+        data.status || 'scheduled',
+        data.publish_to_website || false,
+        data.notes || null,
+        data.is_locked || false,
+        true,
+        data.repeat_group_id
+      ];
+      const result = await client.query(query, values);
+      results.push(result.rows[0]);
+    }
+    await client.query('COMMIT');
+    return results;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// Delete all instances in a repeat group
+async function deleteByRepeatGroup(groupId) {
+  if (useInMemoryStorage) {
+    return true;
+  } else {
+    const query = 'DELETE FROM scheduled_talks WHERE repeat_group_id = $1';
+    const result = await pool.query(query, [groupId]);
+    return result.rowCount > 0;
+  }
+}
+
+// Update all instances in a repeat group
+async function updateByRepeatGroup(groupId, data) {
+  if (useInMemoryStorage) {
+    return [];
+  }
+  const setClauses = [];
+  const values = [];
+  let paramIndex = 1;
+
+  const fields = [
+    ['event_title', data.event_title],
+    ['room_id', data.room_id],
+    ['is_locked', data.is_locked],
+    ['notes', data.notes],
+    ['publish_to_website', data.publish_to_website],
+    ['status', data.status]
+  ];
+
+  for (const [col, val] of fields) {
+    if (val !== undefined) {
+      setClauses.push(`${col} = $${paramIndex}`);
+      values.push(val);
+      paramIndex++;
+    }
+  }
+
+  if (setClauses.length === 0) return [];
+
+  setClauses.push('updated_at = CURRENT_TIMESTAMP');
+  values.push(groupId);
+
+  const query = `
+    UPDATE scheduled_talks
+    SET ${setClauses.join(', ')}
+    WHERE repeat_group_id = $${paramIndex}
+    RETURNING *;
+  `;
+  const result = await pool.query(query, values);
+  return result.rows;
+}
+
+// Check if any item in a repeat group is locked
+async function isRepeatGroupLocked(groupId) {
+  if (useInMemoryStorage) return false;
+  const query = 'SELECT COUNT(*) as cnt FROM scheduled_talks WHERE repeat_group_id = $1 AND is_locked = true';
+  const result = await pool.query(query, [groupId]);
+  return parseInt(result.rows[0].cnt) > 0;
+}
+
+// Create a magic link
+async function createMagicLink(token, label, expiresAt) {
+  if (useInMemoryStorage) {
+    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt };
+  }
+  const query = `
+    INSERT INTO magic_links (token, label, expires_at)
+    VALUES ($1, $2, $3)
+    RETURNING *;
+  `;
+  const result = await pool.query(query, [token, label || null, expiresAt || null]);
+  return result.rows[0];
+}
+
+// Validate a magic link token
+async function validateMagicLink(token) {
+  if (useInMemoryStorage) return null;
+  const query = `
+    SELECT * FROM magic_links
+    WHERE token = $1 AND is_active = true
+    AND (expires_at IS NULL OR expires_at > NOW())
+  `;
+  const result = await pool.query(query, [token]);
+  return result.rows[0] || null;
+}
+
+// Get all magic links
+async function getAllMagicLinks() {
+  if (useInMemoryStorage) return [];
+  const query = 'SELECT * FROM magic_links ORDER BY created_at DESC';
+  const result = await pool.query(query);
+  return result.rows;
+}
+
+// Deactivate a magic link
+async function deactivateMagicLink(id) {
+  if (useInMemoryStorage) return true;
+  const query = 'UPDATE magic_links SET is_active = false WHERE id = $1 RETURNING *';
+  const result = await pool.query(query, [id]);
+  return result.rowCount > 0;
+}
+
 // Close database connection
 async function closeDatabase() {
   if (pool) {
@@ -321,9 +508,18 @@ module.exports = {
   deleteTalkSubmission,
   getAllRooms,
   getAllScheduledTalks,
+  getScheduledTalkById,
   createScheduledTalk,
+  createScheduledTalksInBatch,
   updateScheduledTalk,
   deleteScheduledTalk,
+  deleteByRepeatGroup,
+  updateByRepeatGroup,
+  isRepeatGroupLocked,
   checkSchedulingConflicts,
+  createMagicLink,
+  validateMagicLink,
+  getAllMagicLinks,
+  deactivateMagicLink,
   closeDatabase
 };

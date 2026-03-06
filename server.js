@@ -73,6 +73,10 @@ app.use('/admin', adminRoutes);
 app.use('/api/scheduling', schedulingRoutes);
 app.use('/', kleinConverterRoutes);
 
+// Magic link route
+const { magicLinkLogin } = require('./src/middleware/auth');
+app.get('/schedule/:token', magicLinkLogin);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

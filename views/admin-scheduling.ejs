@@ -138,6 +138,89 @@
       border-color: #4682B4;
     }
 
+    .scheduled-talk.schedule-block {
+      background: #f9edc6;
+      border-color: #D4AF37;
+      border-left: 4px solid #D4AF37;
+    }
+
+    .scheduled-talk.schedule-block.published {
+      background: #d4edda;
+      border-color: #6ab578;
+      border-left: 4px solid #6ab578;
+    }
+
+    .scheduled-talk.schedule-block.locked {
+      background: #f5e6c8;
+      border-color: #c9a84c;
+      border-left: 4px solid #003E7E;
+    }
+
+    .scheduled-talk.schedule-block.locked.published {
+      background: #c8e6c9;
+      border-color: #5a9e60;
+      border-left: 4px solid #003E7E;
+    }
+
+    .lock-indicator {
+      position: absolute;
+      top: 0.5rem;
+      right: 28px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .scheduled-talk:hover .lock-indicator {
+      opacity: 1;
+    }
+
+    .scheduled-talk.locked .lock-indicator {
+      opacity: 1;
+    }
+
+    .repeat-badge {
+      display: inline-block;
+      background: #003E7E;
+      color: white;
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-left: 0.5rem;
+    }
+
+    .repeat-options {
+      display: none;
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
+    .repeat-options.visible {
+      display: block;
+    }
+
+    .custom-days {
+      display: none;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .custom-days.visible {
+      display: flex;
+    }
+
+    .custom-days label {
+      font-weight: normal !important;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+    }
+
     .batch-actions {
       background: white;
       border-radius: 8px;
@@ -292,12 +375,14 @@
     <div class="admin-header">
       <h2 class="page-title" style="margin: 0;">Schedule Management</h2>
       <div class="admin-actions">
-        <a href="/admin/scheduling/export" class="btn btn-secondary">
-          Export to Excel
-        </a>
-        <a href="/admin/dashboard" class="btn btn-secondary">
-          View Submissions
-        </a>
+        <% if (role === 'admin') { %>
+          <a href="/admin/scheduling/export" class="btn btn-secondary">
+            Export to Excel
+          </a>
+          <a href="/admin/dashboard" class="btn btn-secondary">
+            View Submissions
+          </a>
+        <% } %>
         <a href="/admin/logout" class="btn btn-primary">
           Logout
         </a>
@@ -312,6 +397,7 @@
         <div class="tabs">
           <button class="tab active" onclick="switchTab('unscheduled')">Unscheduled</button>
           <button class="tab" onclick="switchTab('events')">Add Event</button>
+          <button class="tab" onclick="switchTab('blocks')">Add Block</button>
         </div>
 
         <div id="unscheduled-tab" class="tab-content active">
@@ -330,6 +416,16 @@
             Add events like coffee breaks, lunches, or social activities that aren't linked to talk submissions.
           </p>
         </div>
+
+        <div id="blocks-tab" class="tab-content">
+          <h3>Add Schedule Block</h3>
+          <button class="btn btn-primary btn-add-event" onclick="showBlockModal()">
+            + New Block
+          </button>
+          <p style="margin-top: 1rem; font-size: 0.85rem; color: #666;">
+            Add recurring schedule blocks like lunch breaks, coffee breaks, or reserved time slots. Blocks can be locked and repeated.
+          </p>
+        </div>
       </div>
 
       <!-- Calendar view -->
@@ -337,9 +433,11 @@
         <div class="calendar-header">
           <h3 style="margin: 0;">Schedule</h3>
           <div style="display: flex; gap: 0.5rem;">
-            <a href="/admin/scheduling/export-app" class="btn btn-secondary" style="padding: 0.5rem 1rem; text-decoration: none;">
-              Export for App
-            </a>
+            <% if (role === 'admin') { %>
+              <a href="/admin/scheduling/export-app" class="btn btn-secondary" style="padding: 0.5rem 1rem; text-decoration: none;">
+                Export for App
+              </a>
+            <% } %>
             <select id="view-mode" onchange="changeViewMode()" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
               <option value="list">List View</option>
               <option value="daily">Daily View</option>
@@ -348,7 +446,8 @@
           </div>
         </div>
 
-        <!-- Batch Actions -->
+        <% if (role === 'admin') { %>
+        <!-- Batch Actions (admin only) -->
         <div class="batch-actions">
           <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
             <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll()" style="width: 18px; height: 18px;">
@@ -359,6 +458,7 @@
           </button>
           <span id="selected-count" style="color: #666; font-size: 0.9rem;"></span>
         </div>
+        <% } %>
 
         <div id="schedule-container">
           <!-- Schedule will be rendered here -->
@@ -402,12 +502,14 @@
           <input type="datetime-local" id="modal-end" required>
         </div>
 
+        <% if (role === 'admin') { %>
         <div class="form-group">
           <label>
             <input type="checkbox" id="modal-publish">
             Publish to website
           </label>
         </div>
+        <% } %>
 
         <div class="form-group">
           <label>Notes</label>
@@ -464,16 +566,97 @@
           <input type="datetime-local" id="event-end" required>
         </div>
 
+        <% if (role === 'admin') { %>
         <div class="form-group">
           <label>
             <input type="checkbox" id="event-publish">
             Publish to website
           </label>
         </div>
+        <% } %>
 
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Add Event</button>
           <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Block Modal -->
+  <div id="block-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="block-modal-title">Add Schedule Block</h3>
+      <form id="block-form">
+        <input type="hidden" id="block-edit-id">
+
+        <div class="form-group">
+          <label>Block Title *</label>
+          <input type="text" id="block-title" required placeholder="e.g., Lunch, Coffee Break, Reserved">
+        </div>
+
+        <div class="form-group">
+          <label>Room (optional)</label>
+          <select id="block-room">
+            <option value="">No room</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Start Time *</label>
+          <input type="datetime-local" id="block-start" required>
+        </div>
+
+        <div class="form-group">
+          <label>End Time *</label>
+          <input type="datetime-local" id="block-end" required>
+        </div>
+
+        <% if (role === 'admin') { %>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="block-locked" checked>
+            Lock this block
+          </label>
+        </div>
+        <% } %>
+
+        <div class="form-group">
+          <label>Repeat</label>
+          <select id="block-repeat" onchange="toggleRepeatOptions()">
+            <option value="">No repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekdays">Every weekday (Mon-Fri)</option>
+            <option value="weekly">Every week (same day)</option>
+            <option value="custom">Custom days</option>
+          </select>
+
+          <div id="repeat-options" class="repeat-options">
+            <div id="custom-days" class="custom-days">
+              <label><input type="checkbox" value="1"> Mon</label>
+              <label><input type="checkbox" value="2"> Tue</label>
+              <label><input type="checkbox" value="3"> Wed</label>
+              <label><input type="checkbox" value="4"> Thu</label>
+              <label><input type="checkbox" value="5"> Fri</label>
+              <label><input type="checkbox" value="6"> Sat</label>
+              <label><input type="checkbox" value="0"> Sun</label>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.75rem; margin-bottom: 0;">
+              <label>Repeat until *</label>
+              <input type="date" id="block-repeat-until">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <textarea id="block-notes" rows="2"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save Block</button>
+          <button type="button" class="btn btn-secondary" onclick="closeBlockModal()">Cancel</button>
         </div>
       </form>
     </div>
@@ -486,6 +669,8 @@
   </footer>
 
   <script>
+    const USER_ROLE = '<%= role %>';
+    const IS_ADMIN = USER_ROLE === 'admin';
     let rooms = [];
     let submissions = [];
     let scheduledTalks = [];
@@ -525,6 +710,15 @@
           option.textContent = `${room.name}${room.building ? ' (' + room.building + ')' : ''}`;
           select.appendChild(option);
         });
+      });
+      // Block room has "No room" as default
+      const blockRoom = document.getElementById('block-room');
+      blockRoom.innerHTML = '<option value="">No room</option>';
+      rooms.forEach(room => {
+        const option = document.createElement('option');
+        option.value = room.id;
+        option.textContent = `${room.name}${room.building ? ' (' + room.building + ')' : ''}`;
+        blockRoom.appendChild(option);
       });
     }
 
@@ -583,40 +777,80 @@
         html += '<div style="display: grid; gap: 1rem; margin-top: 1rem;">';
         byDate[date].forEach(talk => {
           const isEvent = !talk.submission_id;
+          const isBlock = talk.is_block;
+          const isLocked = talk.is_locked;
           const title = isEvent ? talk.event_title : talk.talk_title;
           const speaker = isEvent ? talk.event_speaker : `${talk.first_name} ${talk.last_name}`;
           const startTime = new Date(talk.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
           const endTime = new Date(talk.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
           const isPublished = talk.status === 'published';
 
-          html += `
-            <div class="scheduled-talk ${isEvent ? 'standalone-event' : ''} ${isPublished ? 'published' : ''}"
-                 data-talk-id="${talk.id}">
-              <input type="checkbox" class="talk-checkbox"
+          let classes = 'scheduled-talk';
+          if (isBlock) classes += ' schedule-block';
+          else if (isEvent) classes += ' standalone-event';
+          if (isPublished) classes += ' published';
+          if (isLocked) classes += ' locked';
+
+          const repeatBadge = talk.repeat_group_id
+            ? '<span class="repeat-badge">Repeating</span>'
+            : '';
+
+          const checkboxHtml = IS_ADMIN
+            ? `<input type="checkbox" class="talk-checkbox"
                      onclick="event.stopPropagation()"
                      data-talk-id="${talk.id}"
-                     style="position: absolute; top: 0.5rem; left: 0.5rem; width: 20px; height: 20px; cursor: pointer;">
-              <button class="delete-btn" onclick="deleteTalk(event, ${talk.id})">×</button>
-              <div onclick="editScheduledTalk(${talk.id})" style="cursor: pointer; flex: 1;">
-                <h5>${title}</h5>
+                     style="position: absolute; top: 0.5rem; left: 0.5rem; width: 20px; height: 20px; cursor: pointer;">`
+            : '';
+
+          const deleteHtml = (!isLocked)
+            ? `<button class="delete-btn" onclick="deleteTalk(event, ${talk.id}, '${talk.repeat_group_id || ''}')">×</button>`
+            : '';
+
+          const lockHtml = IS_ADMIN
+            ? `<span class="lock-indicator" onclick="toggleLock(event, ${talk.id}, ${!isLocked})" title="${isLocked ? 'Unlock' : 'Lock'}">
+                ${isLocked ? '🔒' : '🔓'}
+              </span>`
+            : (isLocked ? '<span class="lock-indicator">🔒</span>' : '');
+
+          const canEdit = !isLocked || (IS_ADMIN && !isLocked);
+          const editAttr = (!isLocked) ? `onclick="editScheduledTalk(${talk.id})"` : '';
+          const editCursor = (!isLocked) ? 'pointer' : 'default';
+
+          let publishHtml = '';
+          if (IS_ADMIN) {
+            publishHtml = isPublished
+              ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="color: #D4AF37; font-weight: bold;">Published</span>
+                    <button class="btn btn-sm" onclick="unpublishTalk(event, ${talk.id})"
+                      style="background: #f9edc6; color: #003E7E; padding: 0.25rem 0.75rem; border: 1px solid #D4AF37; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                      Unpublish
+                    </button>
+                  </div>`
+              : `<button class="btn btn-sm" onclick="togglePublish(event, ${talk.id})"
+                    style="background: #003E7E; color: white; padding: 0.25rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                    Mark as Published
+                  </button>`;
+          } else {
+            if (isPublished) {
+              publishHtml = '<span style="color: #D4AF37; font-weight: bold;">Published</span>';
+            }
+          }
+
+          html += `
+            <div class="${classes}"
+                 data-talk-id="${talk.id}"
+                 data-repeat-group="${talk.repeat_group_id || ''}">
+              ${checkboxHtml}
+              ${deleteHtml}
+              ${lockHtml}
+              <div ${editAttr} style="cursor: ${editCursor}; flex: 1;">
+                <h5>${title}${repeatBadge}</h5>
                 ${speaker ? `<p><strong>${speaker}</strong></p>` : ''}
-                <p>📍 ${talk.room_name || 'TBD'}</p>
+                <p>📍 ${talk.room_name || 'No room'}</p>
                 <p>🕒 ${startTime} - ${endTime}</p>
               </div>
               <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
-                ${isPublished
-                  ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                      <span style="color: #D4AF37; font-weight: bold;">Published</span>
-                      <button class="btn btn-sm" onclick="unpublishTalk(event, ${talk.id})"
-                        style="background: #f9edc6; color: #003E7E; padding: 0.25rem 0.75rem; border: 1px solid #D4AF37; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                        Unpublish
-                      </button>
-                    </div>`
-                  : `<button class="btn btn-sm" onclick="togglePublish(event, ${talk.id})"
-                      style="background: #003E7E; color: white; padding: 0.25rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                      Mark as Published
-                    </button>`
-                }
+                ${publishHtml}
               </div>
             </div>
           `;
@@ -697,7 +931,7 @@
         document.getElementById('modal-room').value = talk.room_id || '';
         document.getElementById('modal-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
         document.getElementById('modal-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
-        document.getElementById('modal-publish').checked = talk.publish_to_website;
+        if (document.getElementById('modal-publish')) document.getElementById('modal-publish').checked = talk.publish_to_website;
         document.getElementById('modal-notes').value = talk.notes || '';
       } else {
         // New scheduling
@@ -727,10 +961,12 @@
 
     function editScheduledTalk(talkId) {
       const talk = scheduledTalks.find(t => t.id === talkId);
-      if (talk.submission_id) {
+      if (talk.is_locked) return;
+      if (talk.is_block) {
+        showEditBlockModal(talkId);
+      } else if (talk.submission_id) {
         showScheduleModal(talk.submission_id, talkId);
       } else {
-        // Edit standalone event
         showEditEventModal(talkId);
       }
     }
@@ -747,7 +983,7 @@
       document.getElementById('event-room').value = talk.room_id || '';
       document.getElementById('event-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
       document.getElementById('event-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
-      document.getElementById('event-publish').checked = talk.publish_to_website;
+      if (document.getElementById('event-publish')) document.getElementById('event-publish').checked = talk.publish_to_website;
 
       document.getElementById('event-form').dataset.talkId = talkId;
       modal.classList.add('active');
@@ -790,7 +1026,7 @@
         room_id: document.getElementById('modal-room').value,
         start_time: document.getElementById('modal-start').value,
         end_time: document.getElementById('modal-end').value,
-        publish_to_website: document.getElementById('modal-publish').checked,
+        publish_to_website: document.getElementById('modal-publish') ? document.getElementById('modal-publish').checked : false,
         notes: document.getElementById('modal-notes').value
       };
 
@@ -831,7 +1067,7 @@
         room_id: document.getElementById('event-room').value,
         start_time: document.getElementById('event-start').value,
         end_time: document.getElementById('event-end').value,
-        publish_to_website: document.getElementById('event-publish').checked
+        publish_to_website: document.getElementById('event-publish') ? document.getElementById('event-publish').checked : false
       };
 
       try {
@@ -859,8 +1095,34 @@
       }
     });
 
-    async function deleteTalk(event, talkId) {
+    async function deleteTalk(event, talkId, repeatGroupId) {
       event.stopPropagation();
+
+      if (repeatGroupId) {
+        const choice = prompt('This is part of a repeating series.\nType "all" to delete all instances, or press OK to delete just this one.', '');
+        if (choice === null) return;
+
+        if (choice.toLowerCase() === 'all') {
+          if (!confirm('Delete ALL instances in this repeating series?')) return;
+          try {
+            const response = await fetch(`/api/scheduling/blocks/group/${repeatGroupId}?force=true`, {
+              method: 'DELETE',
+              credentials: 'same-origin'
+            });
+            if (response.ok) {
+              await loadData();
+            } else {
+              const data = await response.json();
+              alert(data.error || 'Failed to delete series');
+            }
+          } catch (error) {
+            console.error('Error deleting series:', error);
+            alert('Failed to delete series');
+          }
+          return;
+        }
+      }
+
       if (!confirm('Are you sure you want to remove this from the schedule?')) return;
 
       try {
@@ -872,7 +1134,8 @@
         if (response.ok) {
           await loadData();
         } else {
-          alert('Failed to delete');
+          const data = await response.json();
+          alert(data.error || 'Failed to delete');
         }
       } catch (error) {
         console.error('Error deleting:', error);
@@ -993,6 +1256,217 @@
       }
     });
 
+    // Lock toggle
+    async function toggleLock(event, talkId, lockState) {
+      event.stopPropagation();
+      try {
+        const response = await fetch(`/api/scheduling/schedule/${talkId}/lock`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_locked: lockState }),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          await loadData();
+        } else {
+          alert('Failed to toggle lock');
+        }
+      } catch (error) {
+        console.error('Error toggling lock:', error);
+        alert('Failed to toggle lock');
+      }
+    }
+
+    // Block modal functions
+    function showBlockModal() {
+      const modal = document.getElementById('block-modal');
+      document.getElementById('block-modal-title').textContent = 'Add Schedule Block';
+      document.getElementById('block-form').reset();
+      document.getElementById('block-edit-id').value = '';
+      if (document.getElementById('block-locked')) document.getElementById('block-locked').checked = true;
+      document.getElementById('block-repeat').value = '';
+      toggleRepeatOptions();
+
+      const nextTime = getNextAvailableTime();
+      const end = new Date(nextTime);
+      end.setMinutes(end.getMinutes() + 30);
+
+      document.getElementById('block-start').value = nextTime.toISOString().slice(0, 16);
+      document.getElementById('block-end').value = end.toISOString().slice(0, 16);
+
+      modal.classList.add('active');
+    }
+
+    function showEditBlockModal(talkId) {
+      const talk = scheduledTalks.find(t => t.id === talkId);
+      const modal = document.getElementById('block-modal');
+      document.getElementById('block-modal-title').textContent = 'Edit Block';
+      document.getElementById('block-edit-id').value = talk.id;
+      document.getElementById('block-title').value = talk.event_title || '';
+      document.getElementById('block-room').value = talk.room_id || '';
+      document.getElementById('block-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
+      document.getElementById('block-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+      if (document.getElementById('block-locked')) document.getElementById('block-locked').checked = talk.is_locked;
+      document.getElementById('block-notes').value = talk.notes || '';
+      document.getElementById('block-repeat').value = '';
+      toggleRepeatOptions();
+
+      document.getElementById('block-form').dataset.repeatGroupId = talk.repeat_group_id || '';
+      modal.classList.add('active');
+    }
+
+    function closeBlockModal() {
+      document.getElementById('block-modal').classList.remove('active');
+    }
+
+    function toggleRepeatOptions() {
+      const repeat = document.getElementById('block-repeat').value;
+      const options = document.getElementById('repeat-options');
+      const customDays = document.getElementById('custom-days');
+
+      if (repeat) {
+        options.classList.add('visible');
+        if (repeat === 'custom') {
+          customDays.classList.add('visible');
+        } else {
+          customDays.classList.remove('visible');
+        }
+      } else {
+        options.classList.remove('visible');
+        customDays.classList.remove('visible');
+      }
+    }
+
+    // Block form submission
+    document.getElementById('block-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const editId = document.getElementById('block-edit-id').value;
+      const repeatGroupId = e.target.dataset.repeatGroupId;
+      const title = document.getElementById('block-title').value;
+      const roomId = document.getElementById('block-room').value;
+      const startTime = document.getElementById('block-start').value;
+      const endTime = document.getElementById('block-end').value;
+      const isLocked = document.getElementById('block-locked') ? document.getElementById('block-locked').checked : false;
+      const notes = document.getElementById('block-notes').value;
+      const repeatPattern = document.getElementById('block-repeat').value;
+
+      if (editId) {
+        // Editing existing block
+        if (repeatGroupId) {
+          const choice = prompt('This is part of a repeating series.\nType "all" to update all instances, or press OK to update just this one.', '');
+          if (choice === null) return;
+
+          if (choice.toLowerCase() === 'all') {
+            try {
+              const response = await fetch(`/api/scheduling/blocks/group/${repeatGroupId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_title: title, room_id: roomId || null, is_locked: isLocked, notes }),
+                credentials: 'same-origin'
+              });
+              if (response.ok) {
+                closeBlockModal();
+                await loadData();
+              } else {
+                alert('Failed to update series');
+              }
+            } catch (error) {
+              console.error('Error updating series:', error);
+              alert('Failed to update series');
+            }
+            return;
+          }
+        }
+
+        // Update single instance
+        try {
+          const response = await fetch(`/api/scheduling/schedule/${editId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_title: title,
+              room_id: roomId || null,
+              start_time: startTime,
+              end_time: endTime,
+              is_locked: isLocked,
+              notes
+            }),
+            credentials: 'same-origin'
+          });
+
+          if (response.ok) {
+            closeBlockModal();
+            await loadData();
+          } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to update block');
+          }
+        } catch (error) {
+          console.error('Error updating block:', error);
+          alert('Failed to update block');
+        }
+        return;
+      }
+
+      // Creating new block
+      const data = {
+        event_title: title,
+        room_id: roomId || null,
+        start_time: startTime,
+        end_time: endTime,
+        is_locked: isLocked,
+        notes
+      };
+
+      if (repeatPattern) {
+        data.repeat = {
+          pattern: repeatPattern,
+          until: document.getElementById('block-repeat-until').value
+        };
+
+        if (!data.repeat.until) {
+          alert('Please select a "Repeat until" date');
+          return;
+        }
+
+        if (repeatPattern === 'custom') {
+          const checkedDays = Array.from(document.querySelectorAll('#custom-days input:checked'))
+            .map(cb => parseInt(cb.value));
+          if (checkedDays.length === 0) {
+            alert('Please select at least one day');
+            return;
+          }
+          data.repeat.days = checkedDays;
+        }
+      }
+
+      try {
+        const response = await fetch('/api/scheduling/blocks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          closeBlockModal();
+          await loadData();
+          if (result.count > 1) {
+            alert(`Created ${result.count} block instances`);
+          }
+        } else {
+          const errData = await response.json();
+          alert(errData.error || 'Failed to create block');
+        }
+      } catch (error) {
+        console.error('Error creating block:', error);
+        alert('Failed to create block');
+      }
+    });
+
     // Smart calendar - auto-fill based on last talk
     function getNextAvailableTime() {
       if (scheduledTalks.length === 0) {
@@ -1024,6 +1498,9 @@
     });
     document.getElementById('event-modal').addEventListener('click', (e) => {
       if (e.target.id === 'event-modal') closeEventModal();
+    });
+    document.getElementById('block-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'block-modal') closeBlockModal();
     });
   </script>
 </body>
