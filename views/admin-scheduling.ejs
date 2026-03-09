@@ -114,6 +114,123 @@
       border: 2px dashed #003E7E;
     }
 
+    /* Calendar navigation */
+    .calendar-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding: 0.5rem 0;
+    }
+
+    .calendar-nav .btn {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .calendar-nav .date-label {
+      font-weight: 700;
+      color: #003E7E;
+      min-width: 220px;
+      text-align: center;
+      font-size: 1rem;
+    }
+
+    /* Daily/Weekly grid */
+    .cal-grid {
+      display: grid;
+      gap: 1px;
+      background: #ddd;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .cal-corner {
+      background: #003E7E;
+      padding: 0.5rem;
+    }
+
+    .cal-col-header {
+      background: #003E7E;
+      color: white;
+      padding: 0.5rem 0.25rem;
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .cal-time {
+      background: white;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      color: #666;
+      text-align: right;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+
+    .cal-cell {
+      background: #fafafa;
+      position: relative;
+      min-height: 40px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .cal-cell:hover {
+      background: #f0f4f8;
+    }
+
+    /* Compact talk card for calendar views */
+    .cal-card {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      border-radius: 3px;
+      padding: 2px 4px;
+      font-size: 0.7rem;
+      line-height: 1.2;
+      overflow: hidden;
+      cursor: pointer;
+      z-index: 1;
+      border-left: 3px solid;
+      transition: box-shadow 0.15s;
+    }
+
+    .cal-card:hover {
+      z-index: 5;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+
+    .cal-card .cal-title {
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cal-card .cal-speaker {
+      color: #555;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cal-card .cal-room {
+      color: #888;
+      font-size: 0.65rem;
+    }
+
+    /* Card color variants */
+    .cal-card.card-talk { background: #d4edda; border-color: #228B22; }
+    .cal-card.card-event { background: #d6eaf8; border-color: #4682B4; }
+    .cal-card.card-block { background: #f9edc6; border-color: #D4AF37; }
+    .cal-card.card-published { background: #fff3cd; border-color: #D4AF37; }
+    .cal-card.card-locked { opacity: 0.85; }
+    .cal-card .cal-lock { font-size: 0.6rem; position: absolute; top: 1px; right: 2px; }
+
     .scheduled-talk {
       background: #90EE90;
       border: 2px solid #228B22;
@@ -469,6 +586,13 @@
           </div>
         </div>
 
+        <div id="calendar-nav" class="calendar-nav" style="display: none;">
+          <button class="btn btn-secondary" onclick="navigateCalendar(-1)">&#9664; Prev</button>
+          <span id="calendar-date-label" class="date-label"></span>
+          <button class="btn btn-secondary" onclick="navigateCalendar(1)">Next &#9654;</button>
+          <button class="btn btn-secondary" onclick="navigateToToday()">Today</button>
+        </div>
+
         <% if (role === 'admin') { %>
         <!-- Batch Actions (admin only) -->
         <div class="batch-actions">
@@ -527,8 +651,8 @@
 
         <% if (role === 'admin') { %>
         <div class="form-group">
-          <label>
-            <input type="checkbox" id="modal-publish">
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="modal-publish" style="width: 16px; height: 16px;">
             Publish to website
           </label>
         </div>
@@ -591,8 +715,8 @@
 
         <% if (role === 'admin') { %>
         <div class="form-group">
-          <label>
-            <input type="checkbox" id="event-publish">
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="event-publish" style="width: 16px; height: 16px;">
             Publish to website
           </label>
         </div>
@@ -637,8 +761,8 @@
 
         <% if (role === 'admin') { %>
         <div class="form-group">
-          <label>
-            <input type="checkbox" id="block-locked" checked>
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="block-locked" checked style="width: 16px; height: 16px;">
             Lock this block
           </label>
         </div>
@@ -699,6 +823,9 @@
     let submissions = [];
     let scheduledTalks = [];
     let draggedItem = null;
+    let currentViewMode = 'list';
+    let currentViewDate = null;
+    let currentWeekStart = null;
 
     // Load initial data
     async function loadData() {
@@ -772,20 +899,187 @@
       `).join('');
     }
 
+    // ── Helper functions for calendar views ──
+
+    function getMonday(d) {
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      date.setDate(date.getDate() + diff);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    function getFirstScheduledDate() {
+      if (scheduledTalks.length === 0) return null;
+      let earliest = new Date(scheduledTalks[0].start_time);
+      scheduledTalks.forEach(t => {
+        const d = new Date(t.start_time);
+        if (d < earliest) earliest = d;
+      });
+      earliest.setHours(0, 0, 0, 0);
+      return earliest;
+    }
+
+    function sameDay(a, b) {
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    function formatDateLabel(d) {
+      return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function formatShortDate(d) {
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    function updateCalendarLabel() {
+      const label = document.getElementById('calendar-date-label');
+      if (currentViewMode === 'daily' && currentViewDate) {
+        label.textContent = formatDateLabel(currentViewDate);
+      } else if (currentViewMode === 'week' && currentWeekStart) {
+        const end = new Date(currentWeekStart);
+        end.setDate(end.getDate() + 4);
+        label.textContent = formatShortDate(currentWeekStart) + ' – ' + formatShortDate(end);
+      }
+    }
+
+    function navigateCalendar(dir) {
+      if (currentViewMode === 'daily') {
+        currentViewDate.setDate(currentViewDate.getDate() + dir);
+      } else if (currentViewMode === 'week') {
+        currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
+      }
+      updateCalendarLabel();
+      renderSchedule();
+    }
+
+    function navigateToToday() {
+      currentViewDate = new Date();
+      currentViewDate.setHours(0, 0, 0, 0);
+      currentWeekStart = getMonday(new Date());
+      updateCalendarLabel();
+      renderSchedule();
+    }
+
+    function getTimeRange(talks) {
+      let minH = 8, maxH = 18;
+      talks.forEach(t => {
+        const sh = new Date(t.start_time).getHours();
+        const eh = new Date(t.end_time).getHours();
+        const em = new Date(t.end_time).getMinutes();
+        if (sh < minH) minH = sh;
+        if (eh + (em > 0 ? 1 : 0) > maxH) maxH = eh + (em > 0 ? 1 : 0);
+      });
+      return { startHour: minH, endHour: maxH };
+    }
+
+    function talkCardClass(talk) {
+      if (talk.is_block) return 'card-block';
+      if (!talk.submission_id) return 'card-event';
+      if (talk.status === 'published') return 'card-published';
+      return 'card-talk';
+    }
+
+    function talkTitle(talk) {
+      return !talk.submission_id ? (talk.event_title || 'Event') : (talk.talk_title || 'Talk');
+    }
+
+    function talkSpeaker(talk) {
+      return !talk.submission_id ? (talk.event_speaker || '') : `${talk.first_name || ''} ${talk.last_name || ''}`.trim();
+    }
+
+    // ── Build talk card HTML (list view - full, calendar view - compact) ──
+
+    function buildListCardHtml(talk) {
+      const isEvent = !talk.submission_id;
+      const isBlock = talk.is_block;
+      const isLocked = talk.is_locked;
+      const title = talkTitle(talk);
+      const speaker = talkSpeaker(talk);
+      const startTime = new Date(talk.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const endTime = new Date(talk.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const isPublished = talk.status === 'published';
+
+      let classes = 'scheduled-talk';
+      if (isBlock) classes += ' schedule-block';
+      else if (isEvent) classes += ' standalone-event';
+      if (isPublished) classes += ' published';
+      if (isLocked) classes += ' locked';
+
+      const repeatBadge = talk.repeat_group_id ? '<span class="repeat-badge">Repeating</span>' : '';
+
+      const checkboxHtml = IS_ADMIN
+        ? `<input type="checkbox" class="talk-checkbox" onclick="event.stopPropagation()" data-talk-id="${talk.id}" style="position: absolute; top: 0.5rem; left: 0.5rem; width: 20px; height: 20px; cursor: pointer;">`
+        : '';
+
+      const deleteHtml = (!isLocked)
+        ? `<button class="delete-btn" onclick="deleteTalk(event, ${talk.id}, '${talk.repeat_group_id || ''}')">×</button>`
+        : '';
+
+      const lockHtml = IS_ADMIN
+        ? `<span class="lock-indicator" onclick="toggleLock(event, ${talk.id}, ${!isLocked})" title="${isLocked ? 'Unlock' : 'Lock'}">${isLocked ? '🔒' : '🔓'}</span>`
+        : (isLocked ? '<span class="lock-indicator">🔒</span>' : '');
+
+      const editAttr = (!isLocked) ? `onclick="editScheduledTalk(${talk.id})"` : '';
+      const editCursor = (!isLocked) ? 'pointer' : 'default';
+
+      let publishHtml = '';
+      if (IS_ADMIN) {
+        publishHtml = isPublished
+          ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="color: #D4AF37; font-weight: bold;">Published</span>
+                <button class="btn btn-sm" onclick="unpublishTalk(event, ${talk.id})" style="background: #f9edc6; color: #003E7E; padding: 0.25rem 0.75rem; border: 1px solid #D4AF37; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">Unpublish</button>
+              </div>`
+          : `<button class="btn btn-sm" onclick="togglePublish(event, ${talk.id})" style="background: #003E7E; color: white; padding: 0.25rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">Mark as Published</button>`;
+      } else {
+        if (isPublished) publishHtml = '<span style="color: #D4AF37; font-weight: bold;">Published</span>';
+      }
+
+      return `
+        <div class="${classes}" data-talk-id="${talk.id}" data-repeat-group="${talk.repeat_group_id || ''}">
+          ${checkboxHtml}${deleteHtml}${lockHtml}
+          <div ${editAttr} style="cursor: ${editCursor}; flex: 1;">
+            <h5>${title}${repeatBadge}</h5>
+            ${speaker ? `<p><strong>${speaker}</strong></p>` : ''}
+            <p>📍 ${talk.room_name || 'No room'}</p>
+            <p>🕒 ${startTime} - ${endTime}</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">${publishHtml}</div>
+        </div>`;
+    }
+
+    // ── renderSchedule dispatcher ──
+
     function renderSchedule() {
       const container = document.getElementById('schedule-container');
 
-      if (scheduledTalks.length === 0) {
-        container.innerHTML = `
-          <div style="text-align: center; padding: 3rem; color: #666;">
-            <p style="font-size: 1.1rem;">No talks scheduled yet</p>
-            <p>Drag submissions from the left panel to schedule them</p>
-          </div>
-        `;
+      if (scheduledTalks.length === 0 && currentViewMode === 'list') {
+        container.innerHTML = `<div style="text-align: center; padding: 3rem; color: #666;">
+          <p style="font-size: 1.1rem;">No talks scheduled yet</p>
+          <p>Drag submissions from the left panel to schedule them</p>
+        </div>`;
         return;
       }
 
-      // Group by date
+      switch (currentViewMode) {
+        case 'daily': renderDailyView(container); break;
+        case 'week': renderWeeklyView(container); break;
+        default: renderListView(container);
+      }
+    }
+
+    // ── List View (original) ──
+
+    function renderListView(container) {
+      if (scheduledTalks.length === 0) {
+        container.innerHTML = `<div style="text-align: center; padding: 3rem; color: #666;">
+          <p style="font-size: 1.1rem;">No talks scheduled yet</p>
+          <p>Drag submissions from the left panel to schedule them</p>
+        </div>`;
+        return;
+      }
+
       const byDate = {};
       scheduledTalks.forEach(talk => {
         const date = new Date(talk.start_time).toLocaleDateString();
@@ -796,94 +1090,231 @@
       let html = '';
       Object.keys(byDate).sort().forEach(date => {
         html += `<h4 style="margin-top: 2rem; color: #003E7E;">${date}</h4>`;
-
         byDate[date].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-
         html += '<div style="display: grid; gap: 1rem; margin-top: 1rem;">';
-        byDate[date].forEach(talk => {
-          const isEvent = !talk.submission_id;
-          const isBlock = talk.is_block;
-          const isLocked = talk.is_locked;
-          const title = isEvent ? talk.event_title : talk.talk_title;
-          const speaker = isEvent ? talk.event_speaker : `${talk.first_name} ${talk.last_name}`;
-          const startTime = new Date(talk.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
-          const endTime = new Date(talk.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
-          const isPublished = talk.status === 'published';
-
-          let classes = 'scheduled-talk';
-          if (isBlock) classes += ' schedule-block';
-          else if (isEvent) classes += ' standalone-event';
-          if (isPublished) classes += ' published';
-          if (isLocked) classes += ' locked';
-
-          const repeatBadge = talk.repeat_group_id
-            ? '<span class="repeat-badge">Repeating</span>'
-            : '';
-
-          const checkboxHtml = IS_ADMIN
-            ? `<input type="checkbox" class="talk-checkbox"
-                     onclick="event.stopPropagation()"
-                     data-talk-id="${talk.id}"
-                     style="position: absolute; top: 0.5rem; left: 0.5rem; width: 20px; height: 20px; cursor: pointer;">`
-            : '';
-
-          const deleteHtml = (!isLocked)
-            ? `<button class="delete-btn" onclick="deleteTalk(event, ${talk.id}, '${talk.repeat_group_id || ''}')">×</button>`
-            : '';
-
-          const lockHtml = IS_ADMIN
-            ? `<span class="lock-indicator" onclick="toggleLock(event, ${talk.id}, ${!isLocked})" title="${isLocked ? 'Unlock' : 'Lock'}">
-                ${isLocked ? '🔒' : '🔓'}
-              </span>`
-            : (isLocked ? '<span class="lock-indicator">🔒</span>' : '');
-
-          const canEdit = !isLocked || (IS_ADMIN && !isLocked);
-          const editAttr = (!isLocked) ? `onclick="editScheduledTalk(${talk.id})"` : '';
-          const editCursor = (!isLocked) ? 'pointer' : 'default';
-
-          let publishHtml = '';
-          if (IS_ADMIN) {
-            publishHtml = isPublished
-              ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="color: #D4AF37; font-weight: bold;">Published</span>
-                    <button class="btn btn-sm" onclick="unpublishTalk(event, ${talk.id})"
-                      style="background: #f9edc6; color: #003E7E; padding: 0.25rem 0.75rem; border: 1px solid #D4AF37; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                      Unpublish
-                    </button>
-                  </div>`
-              : `<button class="btn btn-sm" onclick="togglePublish(event, ${talk.id})"
-                    style="background: #003E7E; color: white; padding: 0.25rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                    Mark as Published
-                  </button>`;
-          } else {
-            if (isPublished) {
-              publishHtml = '<span style="color: #D4AF37; font-weight: bold;">Published</span>';
-            }
-          }
-
-          html += `
-            <div class="${classes}"
-                 data-talk-id="${talk.id}"
-                 data-repeat-group="${talk.repeat_group_id || ''}">
-              ${checkboxHtml}
-              ${deleteHtml}
-              ${lockHtml}
-              <div ${editAttr} style="cursor: ${editCursor}; flex: 1;">
-                <h5>${title}${repeatBadge}</h5>
-                ${speaker ? `<p><strong>${speaker}</strong></p>` : ''}
-                <p>📍 ${talk.room_name || 'No room'}</p>
-                <p>🕒 ${startTime} - ${endTime}</p>
-              </div>
-              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
-                ${publishHtml}
-              </div>
-            </div>
-          `;
-        });
+        byDate[date].forEach(talk => { html += buildListCardHtml(talk); });
         html += '</div>';
       });
 
       container.innerHTML = html;
+    }
+
+    // ── Daily View ──
+
+    function renderDailyView(container) {
+      const dayTalks = scheduledTalks.filter(t => sameDay(new Date(t.start_time), currentViewDate));
+      const SLOT_H = 40; // px per 30-min slot
+
+      if (dayTalks.length === 0 && rooms.length === 0) {
+        container.innerHTML = `<div style="text-align: center; padding: 3rem; color: #666;">No events on this day.</div>`;
+        return;
+      }
+
+      const { startHour, endHour } = dayTalks.length > 0 ? getTimeRange(dayTalks) : { startHour: 8, endHour: 18 };
+      const totalSlots = (endHour - startHour) * 2;
+      const colCount = rooms.length || 1;
+
+      let html = `<div class="cal-grid" style="grid-template-columns: 60px repeat(${colCount}, 1fr); grid-template-rows: auto repeat(${totalSlots}, ${SLOT_H}px);">`;
+
+      // Header row
+      html += `<div class="cal-corner"></div>`;
+      rooms.forEach(r => {
+        html += `<div class="cal-col-header">${r.name}</div>`;
+      });
+
+      // Time rows + cells
+      for (let s = 0; s < totalSlots; s++) {
+        const h = startHour + Math.floor(s / 2);
+        const m = (s % 2) * 30;
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        // Only show label on the hour
+        html += `<div class="cal-time" style="grid-row: ${s + 2}; grid-column: 1;">${m === 0 ? timeStr : ''}</div>`;
+
+        rooms.forEach((r, ri) => {
+          html += `<div class="cal-cell" style="grid-row: ${s + 2}; grid-column: ${ri + 2};"></div>`;
+        });
+      }
+
+      // Place talk cards
+      dayTalks.forEach(talk => {
+        const st = new Date(talk.start_time);
+        const et = new Date(talk.end_time);
+        const startMin = st.getHours() * 60 + st.getMinutes();
+        const endMin = et.getHours() * 60 + et.getMinutes();
+        const top = ((startMin - startHour * 60) / 30) * SLOT_H;
+        const height = Math.max(((endMin - startMin) / 30) * SLOT_H - 2, 18);
+
+        // Find room column
+        let col = -1;
+        rooms.forEach((r, ri) => { if (r.id === talk.room_id) col = ri; });
+
+        const startTimeStr = st.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const endTimeStr = et.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const cardClass = talkCardClass(talk);
+        const lockIcon = talk.is_locked ? '<span class="cal-lock">🔒</span>' : '';
+        const editAction = !talk.is_locked ? `onclick="editScheduledTalk(${talk.id})"` : '';
+
+        if (col >= 0) {
+          // Overlay on the grid using absolute positioning within a wrapper
+          html += `<div class="cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}"
+            style="grid-row: 2; grid-column: ${col + 2}; position: absolute; top: ${top}px; height: ${height}px;"
+            ${editAction} title="${talkTitle(talk)} (${startTimeStr}-${endTimeStr})">
+            ${lockIcon}
+            <div class="cal-title">${talkTitle(talk)}</div>
+            ${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}
+            ${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}
+          </div>`;
+        }
+      });
+
+      html += '</div>';
+
+      // We need room columns to be position:relative for absolute card placement
+      // Instead, wrap in a relative container
+      container.innerHTML = html;
+
+      // After rendering, make each room column relative for card placement
+      // Actually, CSS grid with absolute cards needs the grid itself to be relative
+      const grid = container.querySelector('.cal-grid');
+      if (grid) {
+        grid.style.position = 'relative';
+        // Reposition cards — they need to be relative to their column
+        // Better approach: use a column-based layout instead
+        rebuildDailyCards(container, dayTalks, startHour, SLOT_H);
+      }
+    }
+
+    function rebuildDailyCards(container, dayTalks, startHour, SLOT_H) {
+      // Remove any cal-card elements and rebuild with proper positioning
+      container.querySelectorAll('.cal-card').forEach(el => el.remove());
+
+      const grid = container.querySelector('.cal-grid');
+      if (!grid) return;
+
+      // Get all cal-cell elements per room column
+      const cells = grid.querySelectorAll('.cal-cell');
+      // Create a position reference for each room column
+      const colPositions = {};
+      rooms.forEach((r, ri) => {
+        // Find the first cell in this column
+        const firstCell = grid.querySelector(`.cal-cell[style*="grid-column: ${ri + 2}"]`);
+        if (firstCell) {
+          colPositions[r.id] = {
+            left: firstCell.offsetLeft,
+            width: firstCell.offsetWidth,
+            top: firstCell.offsetTop
+          };
+        }
+      });
+
+      dayTalks.forEach(talk => {
+        const pos = colPositions[talk.room_id];
+        if (!pos) return;
+
+        const st = new Date(talk.start_time);
+        const et = new Date(talk.end_time);
+        const startMin = st.getHours() * 60 + st.getMinutes();
+        const endMin = et.getHours() * 60 + et.getMinutes();
+        const top = pos.top + ((startMin - startHour * 60) / 30) * SLOT_H;
+        const height = Math.max(((endMin - startMin) / 30) * SLOT_H - 2, 18);
+
+        const startTimeStr = st.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const endTimeStr = et.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const cardClass = talkCardClass(talk);
+        const lockIcon = talk.is_locked ? '<span class="cal-lock">🔒</span>' : '';
+
+        const card = document.createElement('div');
+        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}`;
+        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
+        card.title = `${talkTitle(talk)} (${startTimeStr}-${endTimeStr})`;
+        if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
+        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}`;
+
+        grid.appendChild(card);
+      });
+    }
+
+    // ── Weekly View ──
+
+    function renderWeeklyView(container) {
+      const SLOT_H = 40;
+      const days = [];
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(currentWeekStart);
+        d.setDate(d.getDate() + i);
+        days.push(d);
+      }
+
+      const weekTalks = scheduledTalks.filter(t => {
+        const td = new Date(t.start_time);
+        return days.some(d => sameDay(td, d));
+      });
+
+      const { startHour, endHour } = weekTalks.length > 0 ? getTimeRange(weekTalks) : { startHour: 8, endHour: 18 };
+      const totalSlots = (endHour - startHour) * 2;
+
+      let html = `<div class="cal-grid" style="grid-template-columns: 60px repeat(5, 1fr); grid-template-rows: auto repeat(${totalSlots}, ${SLOT_H}px); position: relative;">`;
+
+      // Header
+      html += `<div class="cal-corner"></div>`;
+      days.forEach(d => {
+        const isToday = sameDay(d, new Date());
+        html += `<div class="cal-col-header" style="${isToday ? 'background: #1e40af;' : ''}">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</div>`;
+      });
+
+      // Time rows + cells
+      for (let s = 0; s < totalSlots; s++) {
+        const h = startHour + Math.floor(s / 2);
+        const m = (s % 2) * 30;
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        html += `<div class="cal-time" style="grid-row: ${s + 2}; grid-column: 1;">${m === 0 ? timeStr : ''}</div>`;
+        for (let di = 0; di < 5; di++) {
+          html += `<div class="cal-cell" data-day="${di}" style="grid-row: ${s + 2}; grid-column: ${di + 2};"></div>`;
+        }
+      }
+
+      html += '</div>';
+      container.innerHTML = html;
+
+      // Place cards
+      const grid = container.querySelector('.cal-grid');
+      if (!grid) return;
+
+      // Get column positions from first cell of each day
+      const dayPositions = [];
+      for (let di = 0; di < 5; di++) {
+        const cell = grid.querySelector(`.cal-cell[data-day="${di}"]`);
+        if (cell) {
+          dayPositions.push({ left: cell.offsetLeft, width: cell.offsetWidth, top: cell.offsetTop });
+        }
+      }
+
+      weekTalks.forEach(talk => {
+        const st = new Date(talk.start_time);
+        const dayIdx = days.findIndex(d => sameDay(st, d));
+        if (dayIdx < 0 || !dayPositions[dayIdx]) return;
+
+        const pos = dayPositions[dayIdx];
+        const et = new Date(talk.end_time);
+        const startMin = st.getHours() * 60 + st.getMinutes();
+        const endMin = et.getHours() * 60 + et.getMinutes();
+        const top = pos.top + ((startMin - startHour * 60) / 30) * SLOT_H;
+        const height = Math.max(((endMin - startMin) / 30) * SLOT_H - 2, 18);
+
+        const startTimeStr = st.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const endTimeStr = et.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const cardClass = talkCardClass(talk);
+        const lockIcon = talk.is_locked ? '<span class="cal-lock">🔒</span>' : '';
+
+        const card = document.createElement('div');
+        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}`;
+        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
+        card.title = `${talkTitle(talk)} – ${talkSpeaker(talk)}\n${talk.room_name || 'No room'}\n${startTimeStr}-${endTimeStr}`;
+        if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
+        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${talk.room_name || ''} ${startTimeStr}-${endTimeStr}</div>` : ''}`;
+
+        grid.appendChild(card);
+      });
     }
 
     function checkConflicts() {
@@ -1181,8 +1612,24 @@
     }
 
     function changeViewMode() {
-      // Placeholder for view mode changes
-      alert('View mode switching coming soon!');
+      currentViewMode = document.getElementById('view-mode').value;
+      const nav = document.getElementById('calendar-nav');
+
+      if (currentViewMode === 'list') {
+        nav.style.display = 'none';
+      } else {
+        nav.style.display = 'flex';
+        if (currentViewMode === 'daily' && !currentViewDate) {
+          currentViewDate = getFirstScheduledDate() || new Date();
+          currentViewDate.setHours(0, 0, 0, 0);
+        }
+        if (currentViewMode === 'week' && !currentWeekStart) {
+          const ref = getFirstScheduledDate() || new Date();
+          currentWeekStart = getMonday(ref);
+        }
+        updateCalendarLabel();
+      }
+      renderSchedule();
     }
 
     // Publish functions

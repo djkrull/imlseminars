@@ -24,8 +24,14 @@
       <h2 class="program-name" style="color: #003E7E; margin-bottom: 0.25rem;"><%= program.name %></h2>
       <% if (typeof workshop !== 'undefined' && workshop) { %>
         <h3 style="color: #666; margin: 0 0 0.5rem 0; font-size: 1rem;"><%= workshop.name %></h3>
-      <% } %>
-      <% if (program.start_date) { %>
+        <% if (workshop.start_date) { %>
+          <p style="color: #666; margin-bottom: 1rem;">
+            <%= new Date(workshop.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+            &ndash;
+            <%= new Date(workshop.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+          </p>
+        <% } %>
+      <% } else if (program.start_date) { %>
         <p style="color: #666; margin-bottom: 1rem;">
           <%= new Date(program.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
           &ndash;
