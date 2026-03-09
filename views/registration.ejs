@@ -92,6 +92,21 @@
           </div>
         </div>
 
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email" class="form-label">
+            Email Address <span class="required">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            class="form-input"
+            value="<%= formData.email || '' %>"
+            required
+          >
+        </div>
+
         <!-- Affiliation -->
         <div class="form-group">
           <label for="affiliation" class="form-label">
