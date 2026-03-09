@@ -131,8 +131,14 @@ async function createTables() {
       ('Kuskvillan', 'Main Campus', 50),
       ('Gula villan', 'Main Campus', 30),
       ('Main building', 'Main Campus', 100),
-      ('KTH Lecture room K1', 'KTH Teknikringen 56', 80)
+      ('Old Seminar room', 'Main Campus', 40),
+      ('Fredholm', 'Main Campus', 30),
+      ('Beurling', 'Main Campus', 25),
+      ('Ahlfors', 'Main Campus', 25)
     ON CONFLICT (name) DO NOTHING;
+
+    -- Remove deprecated rooms
+    DELETE FROM rooms WHERE name = 'KTH Lecture room K1' AND id NOT IN (SELECT DISTINCT room_id FROM scheduled_talks WHERE room_id IS NOT NULL);
   `;
 
   try {

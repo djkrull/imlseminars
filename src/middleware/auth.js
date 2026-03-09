@@ -15,6 +15,9 @@ function isAdmin(req, res, next) {
     return next();
   }
   if (req.session && req.session.isExternal) {
+    if (req.accepts('html')) {
+      return res.status(403).render('error', { title: 'Access Denied', message: 'Admin access required' });
+    }
     return res.status(403).json({ error: 'Admin access required' });
   }
   res.redirect('/admin/login');

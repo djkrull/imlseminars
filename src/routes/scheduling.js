@@ -23,9 +23,11 @@ router.get('/submissions', isAuthenticated, async (req, res) => {
     const workshopId = req.query.workshop_id;
     let submissions;
     if (workshopId) {
-      submissions = await db.getSubmissionsByWorkshop(workshopId);
+      const rows = await db.getSubmissionsByWorkshop(workshopId);
+      submissions = rows.map(r => new Talk(r).toJSON());
     } else if (programId) {
-      submissions = await db.getSubmissionsByProgram(programId);
+      const rows = await db.getSubmissionsByProgram(programId);
+      submissions = rows.map(r => new Talk(r).toJSON());
     } else {
       submissions = await Talk.findAll();
     }
@@ -56,9 +58,11 @@ router.get('/unscheduled', isAuthenticated, async (req, res) => {
     const workshopId = req.query.workshop_id;
     let allSubmissions;
     if (workshopId) {
-      allSubmissions = await db.getSubmissionsByWorkshop(workshopId);
+      const rows = await db.getSubmissionsByWorkshop(workshopId);
+      allSubmissions = rows.map(r => new Talk(r).toJSON());
     } else if (programId) {
-      allSubmissions = await db.getSubmissionsByProgram(programId);
+      const rows = await db.getSubmissionsByProgram(programId);
+      allSubmissions = rows.map(r => new Talk(r).toJSON());
     } else {
       allSubmissions = await Talk.findAll();
     }
