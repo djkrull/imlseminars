@@ -580,7 +580,7 @@ async function upsertPrograms(programs) {
 // Get all programs
 async function getAllPrograms() {
   if (useInMemoryStorage) return [];
-  const query = 'SELECT * FROM programs ORDER BY start_date ASC';
+  const query = "SELECT * FROM programs WHERE status NOT IN ('COMPLETED', 'ARCHIVED') ORDER BY start_date ASC";
   const result = await pool.query(query);
   return result.rows;
 }
