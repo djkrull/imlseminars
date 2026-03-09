@@ -131,9 +131,9 @@ router.patch('/schedule/:id', isAuthenticated, async (req, res) => {
     const { room_id, event_title, event_speaker, event_affiliation, event_abstract,
             start_time, end_time, status, publish_to_website, notes, is_locked } = req.body;
 
-    // Admin-only fields: is_locked, publish_to_website, status
+    // Admin-only fields: is_locked, status
     const isAdminUser = req.session && req.session.isAdmin;
-    const adminOnlyFields = ['is_locked', 'publish_to_website', 'status'];
+    const adminOnlyFields = ['is_locked', 'status'];
     const attemptedAdminFields = adminOnlyFields.filter(f => req.body[f] !== undefined);
     if (attemptedAdminFields.length > 0 && !isAdminUser) {
       return res.status(403).json({ error: 'Only admins can change publish status, lock, or status' });
