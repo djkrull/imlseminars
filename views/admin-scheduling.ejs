@@ -11,7 +11,7 @@
   <style>
     .scheduling-container {
       display: grid;
-      grid-template-columns: 300px 1fr;
+      grid-template-columns: 360px 1fr;
       gap: 2rem;
       margin-top: 2rem;
     }
@@ -372,12 +372,28 @@
 
   <!-- Main Content -->
   <main class="container" style="max-width: 1600px;">
-    <a href="/admin/programs" style="display: inline-block; color: #003E7E; text-decoration: none; font-size: 0.9rem; margin-bottom: 0.5rem;">&larr; Programs</a>
+    <% if (role === 'admin') { %>
+      <a href="/admin/programs" style="display: inline-block; color: #003E7E; text-decoration: none; font-size: 0.9rem; margin-bottom: 0.5rem;">&larr; Programs</a>
+    <% } %>
     <% if (program) { %>
       <h1 style="margin: 0.25rem 0 0.25rem 0; color: #003E7E;"><%= program.name %></h1>
     <% } %>
     <% if (typeof workshop !== 'undefined' && workshop) { %>
       <h2 style="margin: 0 0 0.5rem 0; color: #666; font-size: 1.1rem;"><%= workshop.name %></h2>
+    <% } %>
+    <% if (typeof workshops !== 'undefined' && workshops && workshops.length > 0) { %>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+        <a href="/admin/p/<%= programId %>/scheduling"
+           style="padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; text-decoration: none; <%= (typeof workshopId === 'undefined' || !workshopId) ? 'background: #003E7E; color: white;' : 'background: #e9ecef; color: #333;' %>">
+          Program
+        </a>
+        <% workshops.forEach(ws => { %>
+          <a href="/admin/p/<%= programId %>/ws/<%= ws.workshop_id %>/scheduling"
+             style="padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; text-decoration: none; <%= (typeof workshopId !== 'undefined' && workshopId === ws.workshop_id) ? 'background: ' + (ws.color || '#969696') + '; color: white;' : 'background: ' + (ws.color || '#969696') + '22; border: 1px solid ' + (ws.color || '#969696') + '; color: #333;' %>">
+            <%= ws.name %>
+          </a>
+        <% }); %>
+      </div>
     <% } %>
     <div class="admin-header">
       <h2 class="page-title" style="margin: 0;">Schedule Management</h2>

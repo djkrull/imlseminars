@@ -86,37 +86,6 @@
           </div>
         </div>
 
-        <!-- Email -->
-        <div class="form-group">
-          <label for="email" class="form-label">
-            Email Address <span class="required">*</span>
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            class="form-input"
-            value="<%= formData.email || '' %>"
-            required
-          >
-          <small class="form-helper">
-            When you submit this form, confirmation will be sent to the email address entered above.
-          </small>
-        </div>
-
-        <!-- Send Copy Checkbox -->
-        <div class="form-group">
-          <div class="checkbox-group">
-            <input
-              type="checkbox"
-              id="sendCopy"
-              name="sendCopy"
-              <%= formData.sendCopy ? 'checked' : '' %>
-            >
-            <label for="sendCopy">Include copies of your answers in the confirmation email</label>
-          </div>
-        </div>
-
         <!-- Affiliation -->
         <div class="form-group">
           <label for="affiliation" class="form-label">

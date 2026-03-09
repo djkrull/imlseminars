@@ -92,12 +92,14 @@ router.get('/p/:programId/scheduling', isAuthenticated, requireProgramAccess, as
     const programId = req.params.programId;
     const program = await db.getProgramById(programId);
     if (!program) return res.status(404).render('error', { title: 'Not Found', message: 'Program not found' });
+    const workshops = await db.getWorkshopsByProgram(programId);
 
     res.render('admin-scheduling', {
       title: program.name + ' - Schedule',
       role: getUserRole(req),
       program,
-      programId
+      programId,
+      workshops
     });
   } catch (error) {
     console.error('Error loading scheduling:', error);
@@ -408,10 +410,11 @@ router.get('/p/:programId/ws/:workshopId/scheduling', isAuthenticated, requirePr
   const program = await db.getProgramById(programId);
   const workshop = await db.getWorkshopById(workshopId);
   if (!program || !workshop) return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+  const workshops = await db.getWorkshopsByProgram(programId);
   res.render('admin-scheduling', {
     title: workshop.name + ' - Schedule',
     role: getUserRole(req),
-    program, programId, workshop, workshopId
+    program, programId, workshop, workshopId, workshops
   });
 });
 
