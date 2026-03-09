@@ -22,6 +22,9 @@
   <main class="container">
     <% if (program) { %>
       <h2 class="program-name" style="color: #003E7E; margin-bottom: 0.25rem;"><%= program.name %></h2>
+      <% if (typeof workshop !== 'undefined' && workshop) { %>
+        <h3 style="color: #666; margin: 0 0 0.5rem 0; font-size: 1rem;"><%= workshop.name %></h3>
+      <% } %>
       <% if (program.start_date) { %>
         <p style="color: #666; margin-bottom: 1rem;">
           <%= new Date(program.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
@@ -49,8 +52,9 @@
     <% } %>
 
     <div class="form-card">
-      <form action="<%= programId ? '/p/' + programId + '/register' : '/api/submit' %>" method="POST" id="talkForm">
+      <form action="<%= (typeof workshopId !== 'undefined' && workshopId) ? '/p/' + programId + '/ws/' + workshopId + '/register' : (programId ? '/p/' + programId + '/register' : '/api/submit') %>" method="POST" id="talkForm">
         <input type="hidden" name="programId" value="<%= programId || '' %>">
+        <input type="hidden" name="workshopId" value="<%= typeof workshopId !== 'undefined' ? workshopId : '' %>">
         <!-- Personal Information -->
         <div class="form-row">
           <div class="form-group">

@@ -50,6 +50,17 @@ async function createTables() {
       synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS workshops (
+      workshop_id VARCHAR(50) PRIMARY KEY,
+      program_id VARCHAR(50) REFERENCES programs(program_id),
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      color VARCHAR(10) DEFAULT '#969696',
+      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS talk_submissions (
       id SERIAL PRIMARY KEY,
       first_name VARCHAR(255) NOT NULL,
@@ -110,6 +121,11 @@ async function createTables() {
     ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS program_id VARCHAR(50) REFERENCES programs(program_id);
     ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS program_id VARCHAR(50) REFERENCES programs(program_id);
 
+    -- Add workshop_id columns to existing tables
+    ALTER TABLE talk_submissions ADD COLUMN IF NOT EXISTS workshop_id VARCHAR(50) REFERENCES workshops(workshop_id);
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS workshop_id VARCHAR(50) REFERENCES workshops(workshop_id);
+    ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS workshop_id VARCHAR(50) REFERENCES workshops(workshop_id);
+
     -- Insert default rooms if they don't exist
     INSERT INTO rooms (name, building, capacity) VALUES
       ('Kuskvillan', 'Main Campus', 50),
@@ -143,8 +159,8 @@ async function insertTalkSubmission(data) {
     // PostgreSQL
     const query = `
       INSERT INTO talk_submissions
-      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions, program_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions, program_id, workshop_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
     `;
     const values = [
@@ -156,7 +172,8 @@ async function insertTalkSubmission(data) {
       data.talk_abstract,
       data.affiliation,
       data.questions || null,
-      data.programId || data.program_id || null
+      data.programId || data.program_id || null,
+      data.workshop_id || data.workshopId || null
     ];
 
     const result = await pool.query(query, values);
@@ -216,7 +233,7 @@ async function getAllRooms() {
 }
 
 // Get all scheduled talks with submission and room details
-async function getAllScheduledTalks(programId) {
+async function getAllScheduledTalks(programId, workshopId) {
   if (useInMemoryStorage) {
     return [];
   } else {
@@ -231,9 +248,17 @@ async function getAllScheduledTalks(programId) {
       LEFT JOIN rooms r ON st.room_id = r.id
     `;
     const params = [];
+    const conditions = [];
     if (programId) {
-      query += ' WHERE st.program_id = $1';
       params.push(programId);
+      conditions.push(`st.program_id = $${params.length}`);
+    }
+    if (workshopId) {
+      params.push(workshopId);
+      conditions.push(`st.workshop_id = $${params.length}`);
+    }
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
     query += ' ORDER BY st.start_time';
     const result = await pool.query(query, params);
@@ -249,8 +274,8 @@ async function createScheduledTalk(data) {
     const query = `
       INSERT INTO scheduled_talks
       (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *;
     `;
     const values = [
@@ -268,7 +293,8 @@ async function createScheduledTalk(data) {
       data.is_locked || false,
       data.is_block || false,
       data.repeat_group_id || null,
-      data.program_id || null
+      data.program_id || null,
+      data.workshop_id || null
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -337,7 +363,7 @@ async function deleteScheduledTalk(id) {
 }
 
 // Check for conflicts
-async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = null, programId = null) {
+async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = null, programId = null, workshopId = null) {
   if (useInMemoryStorage) {
     return [];
   } else {
@@ -353,8 +379,12 @@ async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = 
     `;
     const params = [roomId, startTime, endTime, excludeId];
     if (programId) {
-      query += ` AND st.program_id = $5`;
       params.push(programId);
+      query += ` AND st.program_id = $${params.length}`;
+    }
+    if (workshopId) {
+      params.push(workshopId);
+      query += ` AND st.workshop_id = $${params.length}`;
     }
     const result = await pool.query(query, params);
     return result.rows;
@@ -385,8 +415,8 @@ async function createScheduledTalksInBatch(items) {
       const query = `
         INSERT INTO scheduled_talks
         (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING *;
       `;
       const values = [
@@ -404,7 +434,8 @@ async function createScheduledTalksInBatch(items) {
         data.is_locked || false,
         true,
         data.repeat_group_id,
-        data.program_id || null
+        data.program_id || null,
+        data.workshop_id || null
       ];
       const result = await client.query(query, values);
       results.push(result.rows[0]);
@@ -480,16 +511,16 @@ async function isRepeatGroupLocked(groupId) {
 }
 
 // Create a magic link
-async function createMagicLink(token, label, expiresAt, programId) {
+async function createMagicLink(token, label, expiresAt, programId, workshopId) {
   if (useInMemoryStorage) {
-    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt, program_id: programId || null };
+    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt, program_id: programId || null, workshop_id: workshopId || null };
   }
   const query = `
-    INSERT INTO magic_links (token, label, expires_at, program_id)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO magic_links (token, label, expires_at, program_id, workshop_id)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *;
   `;
-  const result = await pool.query(query, [token, label || null, expiresAt || null, programId || null]);
+  const result = await pool.query(query, [token, label || null, expiresAt || null, programId || null, workshopId || null]);
   return result.rows[0];
 }
 
@@ -506,15 +537,24 @@ async function validateMagicLink(token) {
 }
 
 // Get all magic links
-async function getAllMagicLinks(programId) {
+async function getAllMagicLinks(programId, workshopId) {
   if (useInMemoryStorage) return [];
+  let query = 'SELECT * FROM magic_links';
+  const params = [];
+  const conditions = [];
   if (programId) {
-    const query = 'SELECT * FROM magic_links WHERE program_id = $1 ORDER BY created_at DESC';
-    const result = await pool.query(query, [programId]);
-    return result.rows;
+    params.push(programId);
+    conditions.push(`program_id = $${params.length}`);
   }
-  const query = 'SELECT * FROM magic_links ORDER BY created_at DESC';
-  const result = await pool.query(query);
+  if (workshopId) {
+    params.push(workshopId);
+    conditions.push(`workshop_id = $${params.length}`);
+  }
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+  query += ' ORDER BY created_at DESC';
+  const result = await pool.query(query, params);
   return result.rows;
 }
 
@@ -633,6 +673,92 @@ async function getScheduledTalksByProgram(programId) {
   return result.rows;
 }
 
+// Bulk upsert workshops from booking app API
+async function upsertWorkshops(workshops) {
+  if (useInMemoryStorage) return [];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const results = [];
+    for (const w of workshops) {
+      const query = `
+        INSERT INTO workshops (workshop_id, program_id, name, description, start_date, end_date, color, synced_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+        ON CONFLICT (workshop_id) DO UPDATE SET
+          program_id = EXCLUDED.program_id,
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          start_date = EXCLUDED.start_date,
+          end_date = EXCLUDED.end_date,
+          color = EXCLUDED.color,
+          synced_at = CURRENT_TIMESTAMP
+        RETURNING *;
+      `;
+      const values = [
+        w.eventId || w.event_id || w.workshopId || w.workshop_id,
+        w.programId || w.program_id || null,
+        w.name,
+        w.description || null,
+        w.startDate || w.start_date,
+        w.endDate || w.end_date,
+        w.color || '#969696'
+      ];
+      const result = await client.query(query, values);
+      results.push(result.rows[0]);
+    }
+    await client.query('COMMIT');
+    return results;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// Get workshops filtered by program
+async function getWorkshopsByProgram(programId) {
+  if (useInMemoryStorage) return [];
+  const query = 'SELECT * FROM workshops WHERE program_id = $1 ORDER BY start_date ASC';
+  const result = await pool.query(query, [programId]);
+  return result.rows;
+}
+
+// Get a single workshop by ID
+async function getWorkshopById(workshopId) {
+  if (useInMemoryStorage) return null;
+  const query = 'SELECT * FROM workshops WHERE workshop_id = $1';
+  const result = await pool.query(query, [workshopId]);
+  return result.rows[0] || null;
+}
+
+// Get submissions filtered by workshop
+async function getSubmissionsByWorkshop(workshopId) {
+  if (useInMemoryStorage) return [];
+  const query = 'SELECT * FROM talk_submissions WHERE workshop_id = $1 ORDER BY submitted_at DESC';
+  const result = await pool.query(query, [workshopId]);
+  return result.rows;
+}
+
+// Get scheduled talks filtered by workshop
+async function getScheduledTalksByWorkshop(workshopId) {
+  if (useInMemoryStorage) return [];
+  const query = `
+    SELECT
+      st.*,
+      ts.first_name, ts.last_name, ts.email, ts.talk_title,
+      ts.talk_abstract, ts.affiliation, ts.questions,
+      r.name as room_name, r.building as room_building
+    FROM scheduled_talks st
+    LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
+    LEFT JOIN rooms r ON st.room_id = r.id
+    WHERE st.workshop_id = $1
+    ORDER BY st.start_time
+  `;
+  const result = await pool.query(query, [workshopId]);
+  return result.rows;
+}
+
 module.exports = {
   initDatabase,
   insertTalkSubmission,
@@ -660,5 +786,10 @@ module.exports = {
   getActivePrograms,
   getProgramById,
   getSubmissionsByProgram,
-  getScheduledTalksByProgram
+  getScheduledTalksByProgram,
+  upsertWorkshops,
+  getWorkshopsByProgram,
+  getWorkshopById,
+  getSubmissionsByWorkshop,
+  getScheduledTalksByWorkshop
 };

@@ -153,14 +153,15 @@
 **Response:** Renders program listing view
 
 #### `POST /admin/programs/sync`
-**Description:** Trigger program sync from IML Booking App
+**Description:** Trigger program and workshop sync from IML Booking App
 **Authentication:** Admin only
 **Response:**
 ```json
 {
   "success": true,
-  "count": 5,
-  "message": "5 programs synced"
+  "programs": 5,
+  "workshops": 12,
+  "message": "5 programs and 12 workshops synced"
 }
 ```
 **Status Codes:**
@@ -226,6 +227,42 @@
 **URL Parameters:**
 - `programId` - Program ID
 **Response:** Excel file download (`IML_EventApp_Schedule_YYYY-MM-DD.xlsx`)
+**Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+**Note:** Only exports talks with `status = 'published'`
+
+### Workshop-Scoped Admin Routes
+
+#### `GET /admin/p/:programId/workshops`
+**Description:** Display workshop listing page for a specific program
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Renders `admin-workshops.ejs` view with workshops for the program
+
+#### `GET /admin/p/:programId/ws/:workshopId/scheduling`
+**Description:** Display workshop-scoped scheduling management interface
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+- `workshopId` - Workshop ID
+**Response:** Renders `admin-scheduling.ejs` view scoped to the workshop
+
+#### `GET /admin/p/:programId/ws/:workshopId/scheduling/export`
+**Description:** Export workshop schedule to Excel file
+**Authentication:** Admin only
+**URL Parameters:**
+- `programId` - Program ID
+- `workshopId` - Workshop ID
+**Response:** Excel file download (`IML_{WorkshopName}_Schedule_YYYY-MM-DD.xlsx`)
+**Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+#### `GET /admin/p/:programId/ws/:workshopId/scheduling/export-app`
+**Description:** Export published workshop schedule to Excel file in the event app import format
+**Authentication:** Admin only
+**URL Parameters:**
+- `programId` - Program ID
+- `workshopId` - Workshop ID
+**Response:** Excel file download (`IML_{WorkshopName}_EventApp_Schedule_YYYY-MM-DD.xlsx`)
 **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 **Note:** Only exports talks with `status = 'published'`
 
@@ -609,6 +646,7 @@
 **Authentication:** Admin only
 **Query Parameters:**
 - `program_id` (optional) - Filter magic links by program ID
+- `workshop_id` (optional) - Filter magic links by workshop ID
 **Response:**
 ```json
 [
@@ -631,7 +669,8 @@
 {
   "label": "string (optional)",
   "expires_at": "datetime (optional)",
-  "program_id": "number (optional)"
+  "program_id": "number (optional)",
+  "workshop_id": "number (optional)"
 }
 ```
 **Response:** Created magic link object

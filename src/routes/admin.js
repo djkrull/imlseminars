@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const ExcelJS = require('exceljs');
 const { isAuthenticated, isAdmin, getUserRole, login, logout, requireProgramAccess } = require('../middleware/auth');
-const { syncPrograms } = require('../services/programSync');
+const { syncPrograms, syncWorkshops } = require('../services/programSync');
 const Talk = require('../models/Talk');
 const db = require('../config/database');
 
@@ -41,11 +41,12 @@ router.get('/programs', isAdmin, async (req, res) => {
   }
 });
 
-// POST /admin/programs/sync - Sync programs from IML Booking App
+// POST /admin/programs/sync - Sync programs and workshops from IML Booking App
 router.post('/programs/sync', isAdmin, async (req, res) => {
   try {
-    const count = await syncPrograms();
-    res.json({ success: true, count, message: `${count} programs synced` });
+    const programCount = await syncPrograms();
+    const workshopCount = await syncWorkshops();
+    res.json({ success: true, programs: programCount, workshops: workshopCount, message: `${programCount} programs and ${workshopCount} workshops synced` });
   } catch (error) {
     console.error('Sync error:', error);
     res.status(500).json({ error: 'Sync failed' });
@@ -70,12 +71,14 @@ router.get('/p/:programId/dashboard', isAuthenticated, requireProgramAccess, asy
 
     const talks = await db.getSubmissionsByProgram(programId);
     const talkObjects = talks.map(t => new Talk(t));
+    const workshops = await db.getWorkshopsByProgram(programId);
     res.render('admin-dashboard', {
       title: program.name + ' - Dashboard',
       talks: talkObjects,
       totalSubmissions: talkObjects.length,
       program,
-      programId
+      programId,
+      workshops
     });
   } catch (error) {
     console.error('Error loading program dashboard:', error);
@@ -380,6 +383,198 @@ router.get('/p/:programId/scheduling/export-app', isAdmin, requireProgramAccess,
     console.log(`Program event app export generated: ${filename} (${publishedTalks.length} published talks)`);
   } catch (error) {
     console.error('Error exporting program schedule for event app:', error);
+    res.status(500).render('error', {
+      title: 'Export Error',
+      message: 'Failed to generate event app Excel file',
+      statusCode: 500
+    });
+  }
+});
+
+// --- Workshop-scoped routes ---
+
+// GET /admin/p/:programId/workshops - Workshop listing page
+router.get('/p/:programId/workshops', isAuthenticated, requireProgramAccess, async (req, res) => {
+  const programId = req.params.programId;
+  const program = await db.getProgramById(programId);
+  if (!program) return res.status(404).render('error', { title: 'Not Found', message: 'Program not found' });
+  const workshops = await db.getWorkshopsByProgram(programId);
+  res.render('admin-workshops', { title: program.name + ' - Workshops', program, programId, workshops, role: getUserRole(req) });
+});
+
+// GET /admin/p/:programId/ws/:workshopId/scheduling - Workshop scheduling page
+router.get('/p/:programId/ws/:workshopId/scheduling', isAuthenticated, requireProgramAccess, async (req, res) => {
+  const { programId, workshopId } = req.params;
+  const program = await db.getProgramById(programId);
+  const workshop = await db.getWorkshopById(workshopId);
+  if (!program || !workshop) return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+  res.render('admin-scheduling', {
+    title: workshop.name + ' - Schedule',
+    role: getUserRole(req),
+    program, programId, workshop, workshopId
+  });
+});
+
+// GET /admin/p/:programId/ws/:workshopId/scheduling/export - Workshop schedule export
+router.get('/p/:programId/ws/:workshopId/scheduling/export', isAdmin, requireProgramAccess, async (req, res) => {
+  try {
+    const { programId, workshopId } = req.params;
+    const program = await db.getProgramById(programId);
+    const workshop = await db.getWorkshopById(workshopId);
+    if (!program || !workshop) return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+
+    const scheduledTalks = await db.getScheduledTalksByWorkshop(workshopId);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Schedule');
+
+    worksheet.columns = [
+      { header: 'Start', key: 'start', width: 20 },
+      { header: 'End', key: 'end', width: 20 },
+      { header: 'Speaker', key: 'speaker', width: 30 },
+      { header: 'Title', key: 'title', width: 50 },
+      { header: 'Affiliation', key: 'affiliation', width: 40 },
+      { header: 'Abstract', key: 'abstract', width: 80 },
+      { header: 'Room', key: 'room', width: 30 },
+      { header: 'Tag', key: 'tag', width: 15 }
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD4AF37' }
+    };
+
+    scheduledTalks.forEach(talk => {
+      const isEvent = !talk.submission_id;
+      const speaker = isEvent
+        ? (talk.event_speaker || '')
+        : `${talk.first_name} ${talk.last_name}`;
+      const title = isEvent ? talk.event_title : talk.talk_title;
+      const affiliation = isEvent ? (talk.event_affiliation || '') : talk.affiliation;
+      const abstract = isEvent ? (talk.event_abstract || '') : talk.talk_abstract;
+
+      worksheet.addRow({
+        start: new Date(talk.start_time).toLocaleString('en-US'),
+        end: new Date(talk.end_time).toLocaleString('en-US'),
+        speaker: speaker,
+        title: title,
+        affiliation: affiliation,
+        abstract: abstract,
+        room: talk.room_name || '',
+        tag: talk.publish_to_website ? 'website' : ''
+      });
+    });
+
+    worksheet.getColumn('abstract').alignment = { wrapText: true, vertical: 'top' };
+    worksheet.getColumn('title').alignment = { wrapText: true, vertical: 'top' };
+
+    const filename = `IML_${workshop.name}_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+    console.log(`Workshop schedule export generated: ${filename} (${scheduledTalks.length} talks)`);
+  } catch (error) {
+    console.error('Error exporting workshop schedule:', error);
+    res.status(500).render('error', {
+      title: 'Export Error',
+      message: 'Failed to generate schedule Excel file',
+      statusCode: 500
+    });
+  }
+});
+
+// GET /admin/p/:programId/ws/:workshopId/scheduling/export-app - Workshop event app export
+router.get('/p/:programId/ws/:workshopId/scheduling/export-app', isAdmin, requireProgramAccess, async (req, res) => {
+  try {
+    const { programId, workshopId } = req.params;
+    const program = await db.getProgramById(programId);
+    const workshop = await db.getWorkshopById(workshopId);
+    if (!program || !workshop) return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+
+    const scheduledTalks = await db.getScheduledTalksByWorkshop(workshopId);
+    const publishedTalks = scheduledTalks.filter(talk => talk.status === 'published');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sheet1');
+
+    worksheet.columns = [
+      { header: 'Start date', key: 'start_date', width: 15 },
+      { header: 'Start time', key: 'start_time', width: 12 },
+      { header: 'End date', key: 'end_date', width: 15 },
+      { header: 'End time', key: 'end_time', width: 12 },
+      { header: 'Title', key: 'title', width: 60 },
+      { header: 'Description', key: 'description', width: 80 },
+      { header: 'Track', key: 'track', width: 15 },
+      { header: 'Tag(s)', key: 'tags', width: 15 },
+      { header: 'Room location', key: 'room', width: 30 },
+      { header: 'Group(s)', key: 'groups', width: 15 }
+    ];
+
+    worksheet.getRow(1).font = { bold: true };
+
+    publishedTalks.forEach(talk => {
+      const isEvent = !talk.submission_id;
+      const speaker = isEvent
+        ? (talk.event_speaker || '')
+        : `${talk.first_name} ${talk.last_name}`;
+      const title = isEvent ? talk.event_title : talk.talk_title;
+      const affiliation = isEvent ? (talk.event_affiliation || '') : talk.affiliation;
+      const abstract = isEvent ? (talk.event_abstract || '') : talk.talk_abstract;
+
+      const startDate = new Date(talk.start_time);
+      const endDate = new Date(talk.end_time);
+
+      const formattedTitle = speaker ? `${speaker}: ${title}` : title;
+
+      let formattedDescription = '';
+      if (speaker) {
+        formattedDescription = `<b>Speaker</b><br/>${speaker}`;
+        if (affiliation) {
+          formattedDescription += `, ${affiliation}`;
+        }
+        formattedDescription += '<br/><br/>';
+      }
+      if (abstract) {
+        formattedDescription += `<b>Abstract</b><br/>${abstract}`;
+      }
+
+      worksheet.addRow({
+        start_date: startDate,
+        start_time: startDate,
+        end_date: endDate,
+        end_time: endDate,
+        title: formattedTitle,
+        description: formattedDescription,
+        track: '',
+        tags: talk.publish_to_website ? 'website' : '',
+        room: talk.room_name || '',
+        groups: ''
+      });
+    });
+
+    worksheet.getColumn('start_date').numFmt = 'yyyy-mm-dd';
+    worksheet.getColumn('end_date').numFmt = 'yyyy-mm-dd';
+    worksheet.getColumn('start_time').numFmt = 'hh:mm';
+    worksheet.getColumn('end_time').numFmt = 'hh:mm';
+
+    worksheet.getColumn('description').alignment = { wrapText: true, vertical: 'top' };
+    worksheet.getColumn('title').alignment = { wrapText: true, vertical: 'top' };
+
+    const filename = `IML_${workshop.name}_EventApp_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+    console.log(`Workshop event app export generated: ${filename} (${publishedTalks.length} published talks)`);
+  } catch (error) {
+    console.error('Error exporting workshop schedule for event app:', error);
     res.status(500).render('error', {
       title: 'Export Error',
       message: 'Failed to generate event app Excel file',
@@ -706,10 +901,10 @@ router.get('/scheduling/export-app', isAdmin, async (req, res) => {
 
 // --- Magic Link Management (admin only) ---
 
-// GET /admin/magic-links - Get all magic links (optionally filtered by program_id)
+// GET /admin/magic-links - Get all magic links (optionally filtered by program_id and/or workshop_id)
 router.get('/magic-links', isAdmin, async (req, res) => {
   try {
-    const links = await db.getAllMagicLinks(req.query.program_id);
+    const links = await db.getAllMagicLinks(req.query.program_id, req.query.workshop_id);
     res.json(links);
   } catch (error) {
     console.error('Error fetching magic links:', error);
@@ -720,9 +915,9 @@ router.get('/magic-links', isAdmin, async (req, res) => {
 // POST /admin/magic-links - Create a new magic link
 router.post('/magic-links', isAdmin, async (req, res) => {
   try {
-    const { label, expires_at, program_id } = req.body;
+    const { label, expires_at, program_id, workshop_id } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
-    const link = await db.createMagicLink(token, label, expires_at || null, program_id || null);
+    const link = await db.createMagicLink(token, label, expires_at || null, program_id || null, workshop_id || null);
     res.status(201).json(link);
   } catch (error) {
     console.error('Error creating magic link:', error);

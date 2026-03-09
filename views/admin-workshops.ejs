@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .workshop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .workshop-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      overflow: hidden;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .workshop-card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .workshop-card-stripe {
+      width: 6px;
+      flex-shrink: 0;
+    }
+
+    .workshop-card-body {
+      padding: 1.25rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .workshop-card-body h3 {
+      margin: 0 0 0.5rem 0;
+      color: #003E7E;
+      font-size: 1.1rem;
+    }
+
+    .workshop-date-range {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .workshop-description {
+      color: #444;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      flex: 1;
+    }
+
+    .workshop-card-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: auto;
+    }
+
+    .workshop-card-actions .btn {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.8rem;
+    }
+
+    .empty-workshops {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #666;
+    }
+
+    .empty-workshops p {
+      margin-top: 0.5rem;
+      font-size: 1rem;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #003E7E;
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .copy-toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #003E7E;
+      color: white;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .copy-toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <img src="/images/IML_bla.png" alt="Institut Mittag-Leffler - The Royal Swedish Academy of Sciences" style="height: 80px; width: auto;">
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container" style="max-width: 1400px;">
+    <a href="/admin/programs" class="back-link">&larr; Back to Programs</a>
+
+    <div class="admin-header">
+      <h2 class="page-title" style="margin: 0;"><%= program.name %> &mdash; Workshops</h2>
+      <div class="admin-actions">
+        <% if (role === 'admin') { %>
+          <button id="sync-btn" class="btn btn-secondary" onclick="syncPrograms()">Sync from Booking App</button>
+        <% } %>
+        <a href="/admin/p/<%= programId %>/dashboard" class="btn btn-secondary">Dashboard</a>
+        <a href="/admin/logout" class="btn btn-primary">Logout</a>
+      </div>
+    </div>
+
+    <% if (!workshops || workshops.length === 0) { %>
+      <div class="empty-workshops">
+        <div class="empty-state-icon">&#128221;</div>
+        <h3>No workshops found</h3>
+        <p>No workshops found. Click Sync to import from IML Booking App.</p>
+      </div>
+    <% } else { %>
+      <div class="workshop-grid">
+        <% workshops.forEach(workshop => { %>
+          <div class="workshop-card" style="border-left: 5px solid <%= workshop.color || '#969696' %>;">
+            <div class="workshop-card-stripe" style="background-color: <%= workshop.color || '#969696' %>;"></div>
+            <div class="workshop-card-body">
+              <h3><%= workshop.name %></h3>
+              <div class="workshop-date-range">
+                <% if (workshop.start_date && workshop.end_date) { %>
+                  <%= new Date(workshop.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                  &ndash;
+                  <%= new Date(workshop.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                <% } else { %>
+                  Dates TBD
+                <% } %>
+              </div>
+              <% if (workshop.description) { %>
+                <div class="workshop-description">
+                  <%= workshop.description.length > 100 ? workshop.description.substring(0, 100) + '...' : workshop.description %>
+                </div>
+              <% } %>
+              <div class="workshop-card-actions">
+                <a href="/admin/p/<%= programId %>/ws/<%= workshop.workshop_id %>/scheduling" class="btn btn-primary">Schedule</a>
+                <button class="btn btn-secondary" onclick="copyRegisterLink('<%= programId %>', '<%= workshop.workshop_id %>')">Register Link</button>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+
+  <div id="copy-toast" class="copy-toast">Link copied to clipboard</div>
+
+  <script>
+    async function syncPrograms() {
+      const btn = document.getElementById('sync-btn');
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      try {
+        const res = await fetch('/admin/programs/sync', { method: 'POST', credentials: 'same-origin' });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          alert('Sync failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Sync failed: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sync from Booking App';
+      }
+    }
+
+    function copyRegisterLink(programId, workshopId) {
+      const url = window.location.origin + '/p/' + programId + '/ws/' + workshopId + '/register';
+      navigator.clipboard.writeText(url).then(function() {
+        var toast = document.getElementById('copy-toast');
+        toast.classList.add('visible');
+        setTimeout(function() { toast.classList.remove('visible'); }, 2000);
+      }).catch(function() {
+        prompt('Copy this link:', url);
+      });
+    }
+  </script>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+</body>
+</html>

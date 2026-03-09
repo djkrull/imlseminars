@@ -25,7 +25,8 @@ class Talk {
       talk_abstract: data.talkAbstract,
       affiliation: data.affiliation,
       questions: data.questions,
-      programId: data.programId || data.program_id || null
+      programId: data.programId || data.program_id || null,
+      workshopId: data.workshopId || data.workshop_id || null
     };
 
     const result = await db.insertTalkSubmission(submissionData);

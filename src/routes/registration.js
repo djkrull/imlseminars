@@ -67,7 +67,13 @@ const talkValidationRules = [
 router.get('/', async (req, res) => {
   try {
     const programs = await db.getActivePrograms();
-    res.render('program-listing', { title: 'Research Programs - Institut Mittag-Leffler', programs });
+    // Build workshopsByProgram map
+    const workshopsByProgram = {};
+    for (const p of programs) {
+      const ws = await db.getWorkshopsByProgram(p.program_id);
+      if (ws.length > 0) workshopsByProgram[p.program_id] = ws;
+    }
+    res.render('program-listing', { title: 'Research Programs - Institut Mittag-Leffler', programs, workshopsByProgram });
   } catch (error) {
     console.error('Error loading programs:', error);
     // Fallback to old registration form if programs fail
@@ -221,6 +227,114 @@ router.get('/p/:programId/success', async (req, res) => {
     submissionId: req.query.id,
     program,
     programId: req.params.programId
+  });
+});
+
+// Workshop-scoped registration form
+router.get('/p/:programId/ws/:workshopId/register', async (req, res) => {
+  try {
+    const program = await db.getProgramById(req.params.programId);
+    const workshop = await db.getWorkshopById(req.params.workshopId);
+    if (!program || !workshop) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+    }
+    if (program.status !== 'ACTIVE' && program.status !== 'PLANNED') {
+      return res.status(400).render('error', { title: 'Registration Closed', message: 'Registration for this program is no longer available.' });
+    }
+    res.render('registration', {
+      title: `Talk Submission - ${workshop.name}`,
+      errors: [],
+      formData: {},
+      program,
+      programId: req.params.programId,
+      workshop,
+      workshopId: req.params.workshopId
+    });
+  } catch (error) {
+    console.error('Error loading workshop registration:', error);
+    res.status(500).render('error', { title: 'Error', message: 'Failed to load registration form' });
+  }
+});
+
+// Workshop-scoped submission
+router.post('/p/:programId/ws/:workshopId/register', talkValidationRules, async (req, res) => {
+  try {
+    const program = await db.getProgramById(req.params.programId);
+    const workshop = await db.getWorkshopById(req.params.workshopId);
+    if (!program || !workshop) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Workshop not found' });
+    }
+
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('registration', {
+        title: `Talk Submission - ${workshop.name}`,
+        errors: errors.array(),
+        formData: req.body,
+        program,
+        programId: req.params.programId,
+        workshop,
+        workshopId: req.params.workshopId
+      });
+    }
+
+    // Create new talk submission with program and workshop scope
+    const talkData = {
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      sendCopy: req.body.sendCopy === 'on' || req.body.sendCopy === true,
+      talkTitle: req.body.talkTitle,
+      talkAbstract: req.body.talkAbstract,
+      affiliation: req.body.affiliation,
+      questions: req.body.questions || null,
+      programId: req.params.programId,
+      workshopId: req.params.workshopId
+    };
+
+    const talk = await Talk.create(talkData);
+
+    console.log('New talk submission received:', {
+      id: talk.id,
+      name: talk.getFullName(),
+      email: talk.email,
+      title: talk.talkTitle,
+      programId: req.params.programId,
+      workshopId: req.params.workshopId
+    });
+
+    // Redirect to workshop-scoped success page
+    res.redirect(`/p/${req.params.programId}/ws/${req.params.workshopId}/success?id=${talk.id}`);
+  } catch (error) {
+    console.error('Error submitting talk:', error);
+    let program = null;
+    let workshop = null;
+    try { program = await db.getProgramById(req.params.programId); } catch (e) { /* ignore */ }
+    try { workshop = await db.getWorkshopById(req.params.workshopId); } catch (e) { /* ignore */ }
+    res.render('registration', {
+      title: workshop ? `Talk Submission - ${workshop.name}` : 'Research Talk Submission',
+      errors: [{ msg: 'An error occurred while submitting your talk. Please try again.' }],
+      formData: req.body,
+      program,
+      programId: req.params.programId,
+      workshop,
+      workshopId: req.params.workshopId
+    });
+  }
+});
+
+// Workshop success page
+router.get('/p/:programId/ws/:workshopId/success', async (req, res) => {
+  const program = await db.getProgramById(req.params.programId);
+  const workshop = await db.getWorkshopById(req.params.workshopId);
+  res.render('success', {
+    title: 'Submission Received',
+    submissionId: req.query.id,
+    program,
+    programId: req.params.programId,
+    workshop,
+    workshopId: req.params.workshopId
   });
 });
 

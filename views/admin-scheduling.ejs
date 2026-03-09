@@ -376,11 +376,14 @@
     <% if (program) { %>
       <h1 style="margin: 0.25rem 0 0.25rem 0; color: #003E7E;"><%= program.name %></h1>
     <% } %>
+    <% if (typeof workshop !== 'undefined' && workshop) { %>
+      <h2 style="margin: 0 0 0.5rem 0; color: #666; font-size: 1.1rem;"><%= workshop.name %></h2>
+    <% } %>
     <div class="admin-header">
       <h2 class="page-title" style="margin: 0;">Schedule Management</h2>
       <div class="admin-actions">
         <% if (role === 'admin') { %>
-          <a href="/admin/p/<%= programId %>/scheduling/export" class="btn btn-secondary">
+          <a href="<%= (typeof workshopId !== 'undefined' && workshopId) ? '/admin/p/' + programId + '/ws/' + workshopId + '/scheduling/export' : '/admin/p/' + programId + '/scheduling/export' %>" class="btn btn-secondary">
             Export to Excel
           </a>
           <a href="/admin/dashboard" class="btn btn-secondary">
@@ -438,7 +441,7 @@
           <h3 style="margin: 0;">Schedule</h3>
           <div style="display: flex; gap: 0.5rem;">
             <% if (role === 'admin') { %>
-              <a href="/admin/p/<%= programId %>/scheduling/export-app" class="btn btn-secondary" style="padding: 0.5rem 1rem; text-decoration: none;">
+              <a href="<%= (typeof workshopId !== 'undefined' && workshopId) ? '/admin/p/' + programId + '/ws/' + workshopId + '/scheduling/export-app' : '/admin/p/' + programId + '/scheduling/export-app' %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; text-decoration: none;">
                 Export for App
               </a>
             <% } %>
@@ -675,6 +678,7 @@
   <script>
     const USER_ROLE = '<%= role %>';
     const IS_ADMIN = USER_ROLE === 'admin';
+    const WORKSHOP_ID = '<%= typeof workshopId !== "undefined" && workshopId ? workshopId : "" %>';
     let rooms = [];
     let submissions = [];
     let scheduledTalks = [];
@@ -683,10 +687,11 @@
     // Load initial data
     async function loadData() {
       try {
+        const wsParam = WORKSHOP_ID ? `&workshop_id=${WORKSHOP_ID}` : '';
         const [roomsRes, submissionsRes, scheduledRes] = await Promise.all([
-          fetch('/api/scheduling/rooms?program_id=<%= programId %>', { credentials: 'same-origin' }),
-          fetch('/api/scheduling/submissions?program_id=<%= programId %>', { credentials: 'same-origin' }),
-          fetch('/api/scheduling/scheduled?program_id=<%= programId %>', { credentials: 'same-origin' })
+          fetch('/api/scheduling/rooms?program_id=<%= programId %>' + wsParam, { credentials: 'same-origin' }),
+          fetch('/api/scheduling/submissions?program_id=<%= programId %>' + wsParam, { credentials: 'same-origin' }),
+          fetch('/api/scheduling/scheduled?program_id=<%= programId %>' + wsParam, { credentials: 'same-origin' })
         ]);
 
         rooms = await roomsRes.json();
@@ -1032,7 +1037,8 @@
         end_time: document.getElementById('modal-end').value,
         publish_to_website: document.getElementById('modal-publish') ? document.getElementById('modal-publish').checked : false,
         notes: document.getElementById('modal-notes').value,
-        program_id: '<%= programId %>'
+        program_id: '<%= programId %>',
+        workshop_id: WORKSHOP_ID || undefined
       };
 
       try {
@@ -1073,7 +1079,8 @@
         start_time: document.getElementById('event-start').value,
         end_time: document.getElementById('event-end').value,
         publish_to_website: document.getElementById('event-publish') ? document.getElementById('event-publish').checked : false,
-        program_id: '<%= programId %>'
+        program_id: '<%= programId %>',
+        workshop_id: WORKSHOP_ID || undefined
       };
 
       try {
@@ -1169,7 +1176,7 @@
         const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'published', program_id: '<%= programId %>' }),
+          body: JSON.stringify({ status: 'published', program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
           credentials: 'same-origin'
         });
 
@@ -1192,7 +1199,7 @@
         const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'scheduled', program_id: '<%= programId %>' }),
+          body: JSON.stringify({ status: 'scheduled', program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
           credentials: 'same-origin'
         });
 
@@ -1224,7 +1231,7 @@
             fetch(`/api/scheduling/schedule/${id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'published', program_id: '<%= programId %>' }),
+              body: JSON.stringify({ status: 'published', program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
               credentials: 'same-origin'
             })
           )
@@ -1269,7 +1276,7 @@
         const response = await fetch(`/api/scheduling/schedule/${talkId}/lock`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_locked: lockState, program_id: '<%= programId %>' }),
+          body: JSON.stringify({ is_locked: lockState, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
           credentials: 'same-origin'
         });
 
@@ -1369,7 +1376,7 @@
               const response = await fetch(`/api/scheduling/blocks/group/${repeatGroupId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event_title: title, room_id: roomId || null, is_locked: isLocked, notes, program_id: '<%= programId %>' }),
+                body: JSON.stringify({ event_title: title, room_id: roomId || null, is_locked: isLocked, notes, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
                 credentials: 'same-origin'
               });
               if (response.ok) {
@@ -1398,7 +1405,8 @@
               end_time: endTime,
               is_locked: isLocked,
               notes,
-              program_id: '<%= programId %>'
+              program_id: '<%= programId %>',
+              workshop_id: WORKSHOP_ID || undefined
             }),
             credentials: 'same-origin'
           });
@@ -1425,7 +1433,8 @@
         end_time: endTime,
         is_locked: isLocked,
         notes,
-        program_id: '<%= programId %>'
+        program_id: '<%= programId %>',
+        workshop_id: WORKSHOP_ID || undefined
       };
 
       if (repeatPattern) {

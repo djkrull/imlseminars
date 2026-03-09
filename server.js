@@ -5,7 +5,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDatabase, closeDatabase } = require('./src/config/database');
-const { syncPrograms } = require('./src/services/programSync');
+const { syncPrograms, syncWorkshops } = require('./src/services/programSync');
 
 // Initialize Express app
 const app = express();
@@ -121,11 +121,14 @@ async function startServer() {
 ╚═══════════════════════════════════════════════════════╝
       `);
 
-      // Non-blocking program sync on startup
+      // Non-blocking program + workshop sync on startup
       syncPrograms().then(count => {
         if (count > 0) console.log(`Startup sync: ${count} programs loaded`);
+        return syncWorkshops();
+      }).then(count => {
+        if (count > 0) console.log(`Startup sync: ${count} workshops loaded`);
       }).catch(err => {
-        console.warn('Startup program sync failed:', err.message);
+        console.warn('Startup sync failed:', err.message);
       });
     });
   } catch (error) {

@@ -108,6 +108,22 @@
               <div class="program-list-description"><%= program.description %></div>
             <% } %>
             <a href="/p/<%= program.program_id %>/register" class="btn btn-primary">Register for Talk</a>
+            <%
+              const programWorkshops = (typeof workshopsByProgram !== 'undefined' && workshopsByProgram)
+                ? (workshopsByProgram[program.program_id] || [])
+                : [];
+            %>
+            <% if (programWorkshops.length > 0) { %>
+              <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #eee;">
+                <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">Workshops:</div>
+                <% programWorkshops.forEach(ws => { %>
+                  <a href="/p/<%= program.program_id %>/ws/<%= ws.workshop_id %>/register"
+                     style="display: inline-block; padding: 0.25rem 0.6rem; margin: 0.15rem; border-radius: 4px; font-size: 0.8rem; background: <%= ws.color || '#969696' %>22; border: 1px solid <%= ws.color || '#969696' %>; color: #333; text-decoration: none;">
+                    <%= ws.name %>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
           </div>
         <% }); %>
       </div>

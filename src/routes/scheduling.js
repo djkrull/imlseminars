@@ -16,13 +16,19 @@ router.get('/rooms', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /api/scheduling/submissions - Get all submissions (optionally filtered by program_id)
+// GET /api/scheduling/submissions - Get all submissions (optionally filtered by program_id or workshop_id)
 router.get('/submissions', isAuthenticated, async (req, res) => {
   try {
     const programId = req.query.program_id;
-    const submissions = programId
-      ? await db.getSubmissionsByProgram(programId)
-      : await Talk.findAll();
+    const workshopId = req.query.workshop_id;
+    let submissions;
+    if (workshopId) {
+      submissions = await db.getSubmissionsByWorkshop(workshopId);
+    } else if (programId) {
+      submissions = await db.getSubmissionsByProgram(programId);
+    } else {
+      submissions = await Talk.findAll();
+    }
     res.json(submissions);
   } catch (error) {
     console.error('Error fetching submissions:', error);
@@ -30,13 +36,12 @@ router.get('/submissions', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /api/scheduling/scheduled - Get all scheduled talks (optionally filtered by program_id)
+// GET /api/scheduling/scheduled - Get all scheduled talks (optionally filtered by program_id and/or workshop_id)
 router.get('/scheduled', isAuthenticated, async (req, res) => {
   try {
     const programId = req.query.program_id;
-    const scheduled = programId
-      ? await db.getAllScheduledTalks(programId)
-      : await db.getAllScheduledTalks();
+    const workshopId = req.query.workshop_id;
+    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined);
     res.json(scheduled);
   } catch (error) {
     console.error('Error fetching scheduled talks:', error);
@@ -44,16 +49,20 @@ router.get('/scheduled', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /api/scheduling/unscheduled - Get unscheduled submissions (optionally filtered by program_id)
+// GET /api/scheduling/unscheduled - Get unscheduled submissions (optionally filtered by program_id or workshop_id)
 router.get('/unscheduled', isAuthenticated, async (req, res) => {
   try {
     const programId = req.query.program_id;
-    const allSubmissions = programId
-      ? await db.getSubmissionsByProgram(programId)
-      : await Talk.findAll();
-    const scheduled = programId
-      ? await db.getAllScheduledTalks(programId)
-      : await db.getAllScheduledTalks();
+    const workshopId = req.query.workshop_id;
+    let allSubmissions;
+    if (workshopId) {
+      allSubmissions = await db.getSubmissionsByWorkshop(workshopId);
+    } else if (programId) {
+      allSubmissions = await db.getSubmissionsByProgram(programId);
+    } else {
+      allSubmissions = await Talk.findAll();
+    }
+    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined);
     const scheduledIds = scheduled
       .filter(s => s.submission_id)
       .map(s => s.submission_id);
@@ -73,7 +82,7 @@ router.get('/unscheduled', isAuthenticated, async (req, res) => {
 router.post('/schedule', isAuthenticated, async (req, res) => {
   try {
     const { submission_id, room_id, event_title, event_speaker, event_affiliation,
-            event_abstract, start_time, end_time, publish_to_website, notes, program_id } = req.body;
+            event_abstract, start_time, end_time, publish_to_website, notes, program_id, workshop_id } = req.body;
 
     // Validate required fields
     if (!room_id || !start_time || !end_time) {
@@ -81,7 +90,7 @@ router.post('/schedule', isAuthenticated, async (req, res) => {
     }
 
     // Check for conflicts
-    const conflicts = await db.checkSchedulingConflicts(room_id, start_time, end_time, null, program_id || null);
+    const conflicts = await db.checkSchedulingConflicts(room_id, start_time, end_time, null, program_id || null, workshop_id || null);
     if (conflicts.length > 0) {
       return res.status(409).json({
         error: 'Scheduling conflict detected',
@@ -100,7 +109,8 @@ router.post('/schedule', isAuthenticated, async (req, res) => {
       end_time,
       publish_to_website: publish_to_website || false,
       notes,
-      program_id: program_id || null
+      program_id: program_id || null,
+      workshop_id: workshop_id || null
     });
 
     res.status(201).json(scheduled);
@@ -151,7 +161,9 @@ router.patch('/schedule/:id', isAuthenticated, async (req, res) => {
           checkRoomId,
           checkStartTime,
           checkEndTime,
-          parseInt(id)
+          parseInt(id),
+          currentTalk.program_id || null,
+          currentTalk.workshop_id || null
         );
 
         if (conflicts.length > 0) {
@@ -231,7 +243,7 @@ router.delete('/schedule/:id', isAuthenticated, async (req, res) => {
 // POST /api/scheduling/blocks - Create a scheduling block (single or repeating)
 router.post('/blocks', isAuthenticated, async (req, res) => {
   try {
-    const { event_title, room_id, start_time, end_time, is_locked, notes, repeat, program_id } = req.body;
+    const { event_title, room_id, start_time, end_time, is_locked, notes, repeat, program_id, workshop_id } = req.body;
 
     if (!event_title || !start_time || !end_time) {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
@@ -245,7 +257,7 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
     if (!repeat) {
       // Single block
       if (room_id) {
-        const conflicts = await db.checkSchedulingConflicts(room_id, start_time, end_time, null, program_id || null);
+        const conflicts = await db.checkSchedulingConflicts(room_id, start_time, end_time, null, program_id || null, workshop_id || null);
         if (conflicts.length > 0) {
           return res.status(409).json({ error: 'Scheduling conflict detected', conflicts });
         }
@@ -259,7 +271,8 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
         is_locked: is_locked !== undefined ? is_locked : true,
         is_block: true,
         notes,
-        program_id: program_id || null
+        program_id: program_id || null,
+        workshop_id: workshop_id || null
       });
 
       return res.status(201).json(block);
@@ -315,7 +328,7 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
         const dateStr = date.toISOString().split('T')[0];
         const slotStart = `${dateStr}T${startTimeOfDay}`;
         const slotEnd = `${dateStr}T${endTimeOfDay}`;
-        const conflicts = await db.checkSchedulingConflicts(room_id, slotStart, slotEnd, null, program_id || null);
+        const conflicts = await db.checkSchedulingConflicts(room_id, slotStart, slotEnd, null, program_id || null, workshop_id || null);
         if (conflicts.length > 0) {
           return res.status(409).json({
             error: `Scheduling conflict on ${dateStr}`,
@@ -337,7 +350,8 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
         is_block: true,
         repeat_group_id: repeatGroupId,
         notes,
-        program_id: program_id || null
+        program_id: program_id || null,
+        workshop_id: workshop_id || null
       };
     });
 
@@ -397,7 +411,7 @@ router.delete('/blocks/group/:groupId', isAuthenticated, async (req, res) => {
 // POST /api/scheduling/check-conflict - Check for conflicts without creating
 router.post('/check-conflict', isAuthenticated, async (req, res) => {
   try {
-    const { room_id, start_time, end_time, exclude_id, program_id } = req.body;
+    const { room_id, start_time, end_time, exclude_id, program_id, workshop_id } = req.body;
 
     if (!room_id || !start_time || !end_time) {
       return res.status(400).json({ error: 'Room, start time, and end time are required' });
@@ -408,7 +422,8 @@ router.post('/check-conflict', isAuthenticated, async (req, res) => {
       start_time,
       end_time,
       exclude_id,
-      program_id
+      program_id,
+      workshop_id
     );
 
     res.json({ hasConflict: conflicts.length > 0, conflicts });

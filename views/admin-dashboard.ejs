@@ -126,6 +126,23 @@
       <% } %>
     </div>
 
+    <% if (typeof workshops !== 'undefined' && workshops && workshops.length > 0) { %>
+      <div class="section-header" style="margin-top: 2rem;">
+        <h3 style="color: #003E7E;">Workshops</h3>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+        <% workshops.forEach(ws => { %>
+          <div style="background: white; border-left: 4px solid <%= ws.color || '#969696' %>; border-radius: 6px; padding: 1rem 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1); min-width: 200px;">
+            <strong style="color: #003E7E;"><%= ws.name %></strong>
+            <div style="font-size: 0.85rem; color: #666; margin: 0.25rem 0;">
+              <%= new Date(ws.start_date).toLocaleDateString('en-GB', {day:'numeric',month:'short'}) %> – <%= new Date(ws.end_date).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) %>
+            </div>
+            <a href="/admin/p/<%= programId %>/ws/<%= ws.workshop_id %>/scheduling" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.25rem 0.6rem; margin-top: 0.5rem;">Schedule</a>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
     <!-- Magic Links Management -->
     <div style="margin-top: 3rem;">
       <div class="admin-header">

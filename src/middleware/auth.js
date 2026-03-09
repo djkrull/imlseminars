@@ -38,6 +38,9 @@ function requireProgramAccess(req, res, next) {
   // Admin: always allowed
   if (req.session && req.session.isAdmin) {
     req.programId = programId;
+    if (req.params.workshopId) {
+      req.workshopId = req.params.workshopId;
+    }
     return next();
   }
 
@@ -45,6 +48,15 @@ function requireProgramAccess(req, res, next) {
   if (req.session && req.session.isExternal) {
     if (req.session.programId === programId) {
       req.programId = programId;
+      if (req.params.workshopId) {
+        if (req.session.workshopId && req.session.workshopId !== req.params.workshopId) {
+          if (req.accepts('html')) {
+            return res.status(403).render('error', { title: 'Access Denied', message: 'You do not have access to this workshop.' });
+          }
+          return res.status(403).json({ error: 'Access denied to this workshop' });
+        }
+        req.workshopId = req.params.workshopId;
+      }
       return next();
     }
     if (req.accepts('html')) {
@@ -123,8 +135,11 @@ async function magicLinkLogin(req, res) {
     req.session.role = 'external';
     req.session.magicLinkId = link.id;
     req.session.programId = link.program_id;
+    req.session.workshopId = link.workshop_id || null;
 
-    if (link.program_id) {
+    if (link.workshop_id && link.program_id) {
+      res.redirect(`/admin/p/${link.program_id}/ws/${link.workshop_id}/scheduling`);
+    } else if (link.program_id) {
       res.redirect(`/admin/p/${link.program_id}/scheduling`);
     } else {
       res.redirect('/admin/programs');
