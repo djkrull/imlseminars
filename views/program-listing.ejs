@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="icon" type="image/png" href="/images/mittag-leffler-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .program-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    .program-list-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .program-list-card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .program-list-card h3 {
+      margin: 0 0 0.5rem 0;
+      color: #003E7E;
+      font-size: 1.25rem;
+    }
+
+    .program-list-date {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .program-list-description {
+      color: #444;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    .empty-programs-public {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #666;
+    }
+
+    .empty-programs-public p {
+      font-size: 1rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <img src="/images/IML_bla.png" alt="Institut Mittag-Leffler - The Royal Swedish Academy of Sciences" style="height: 80px; width: auto;">
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <h2 class="page-title">Research Programs</h2>
+    <p class="page-subtitle">Browse current programs and register your research talk</p>
+
+    <% if (!programs || programs.length === 0) { %>
+      <div class="empty-programs-public">
+        <h3>No active programs at the moment.</h3>
+        <p>Please check back later for upcoming research programs.</p>
+      </div>
+    <% } else { %>
+      <div class="program-list">
+        <% programs.forEach(program => { %>
+          <div class="program-list-card">
+            <h3><%= program.name %></h3>
+            <div class="program-list-date">
+              <% if (program.start_date && program.end_date) { %>
+                <%= new Date(program.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                &ndash;
+                <%= new Date(program.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+              <% } %>
+            </div>
+            <% if (program.description) { %>
+              <div class="program-list-description"><%= program.description %></div>
+            <% } %>
+            <a href="/p/<%= program.program_id %>/register" class="btn btn-primary">Register for Talk</a>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <!-- Contact Information -->
+    <div class="info-box">
+      <h3>Contact</h3>
+      <p>For questions about the programs, please contact the program organizers.</p>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+</body>
+</html>

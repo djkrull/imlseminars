@@ -8,6 +8,24 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .back-link {
+      display: inline-block;
+      color: #003E7E;
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      transition: opacity 0.2s;
+    }
+    .back-link:hover {
+      opacity: 0.7;
+    }
+    .program-subtitle {
+      color: #666;
+      font-size: 0.95rem;
+      margin: 0.25rem 0 1rem 0;
+    }
+  </style>
 </head>
 <body>
   <!-- Header -->
@@ -19,6 +37,15 @@
 
   <!-- Main Content -->
   <main class="container" style="max-width: 1400px;">
+    <a href="/admin/programs" class="back-link">&larr; Back to Programs</a>
+    <h1><%= program ? program.name : 'Admin Dashboard' %></h1>
+    <% if (program && program.start_date) { %>
+      <p class="program-subtitle">
+        <%= new Date(program.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+        &ndash;
+        <%= new Date(program.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+      </p>
+    <% } %>
     <div class="admin-header">
       <h2 class="page-title" style="margin: 0;">Talk Submissions</h2>
       <div class="admin-actions">
@@ -81,7 +108,7 @@
                 </td>
                 <td>
                   <div class="table-actions">
-                    <a href="/admin/view/<%= talk.id %>" class="btn btn-primary btn-sm">
+                    <a href="/admin/p/<%= programId %>/view/<%= talk.id %>" class="btn btn-primary btn-sm">
                       View
                     </a>
                   </div>
@@ -157,7 +184,7 @@
     // Magic Links Management
     async function loadMagicLinks() {
       try {
-        const response = await fetch('/admin/magic-links', { credentials: 'same-origin' });
+        const response = await fetch('/admin/magic-links?program_id=<%= programId %>', { credentials: 'same-origin' });
         const links = await response.json();
         const tbody = document.getElementById('magic-links-body');
 
@@ -235,7 +262,7 @@
         const response = await fetch('/admin/magic-links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ label, expires_at: expiresAt || null }),
+          body: JSON.stringify({ label, expires_at: expiresAt || null, program_id: '<%= programId %>' }),
           credentials: 'same-origin'
         });
 

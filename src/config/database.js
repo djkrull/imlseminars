@@ -39,6 +39,17 @@ async function initDatabase() {
 // Create database tables
 async function createTables() {
   const createTablesQuery = `
+    CREATE TABLE IF NOT EXISTS programs (
+      program_id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      status VARCHAR(20) DEFAULT 'PLANNED',
+      color VARCHAR(20) DEFAULT 'purple',
+      synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS talk_submissions (
       id SERIAL PRIMARY KEY,
       first_name VARCHAR(255) NOT NULL,
@@ -94,6 +105,11 @@ async function createTables() {
       expires_at TIMESTAMP
     );
 
+    -- Add program_id columns to existing tables
+    ALTER TABLE talk_submissions ADD COLUMN IF NOT EXISTS program_id VARCHAR(50) REFERENCES programs(program_id);
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS program_id VARCHAR(50) REFERENCES programs(program_id);
+    ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS program_id VARCHAR(50) REFERENCES programs(program_id);
+
     -- Insert default rooms if they don't exist
     INSERT INTO rooms (name, building, capacity) VALUES
       ('Kuskvillan', 'Main Campus', 50),
@@ -127,8 +143,8 @@ async function insertTalkSubmission(data) {
     // PostgreSQL
     const query = `
       INSERT INTO talk_submissions
-      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions, program_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *;
     `;
     const values = [
@@ -139,7 +155,8 @@ async function insertTalkSubmission(data) {
       data.talk_title,
       data.talk_abstract,
       data.affiliation,
-      data.questions || null
+      data.questions || null,
+      data.programId || data.program_id || null
     ];
 
     const result = await pool.query(query, values);
@@ -199,11 +216,11 @@ async function getAllRooms() {
 }
 
 // Get all scheduled talks with submission and room details
-async function getAllScheduledTalks() {
+async function getAllScheduledTalks(programId) {
   if (useInMemoryStorage) {
     return [];
   } else {
-    const query = `
+    let query = `
       SELECT
         st.*,
         ts.first_name, ts.last_name, ts.email, ts.talk_title,
@@ -212,9 +229,14 @@ async function getAllScheduledTalks() {
       FROM scheduled_talks st
       LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
       LEFT JOIN rooms r ON st.room_id = r.id
-      ORDER BY st.start_time
     `;
-    const result = await pool.query(query);
+    const params = [];
+    if (programId) {
+      query += ' WHERE st.program_id = $1';
+      params.push(programId);
+    }
+    query += ' ORDER BY st.start_time';
+    const result = await pool.query(query, params);
     return result.rows;
   }
 }
@@ -227,8 +249,8 @@ async function createScheduledTalk(data) {
     const query = `
       INSERT INTO scheduled_talks
       (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `;
     const values = [
@@ -245,7 +267,8 @@ async function createScheduledTalk(data) {
       data.notes || null,
       data.is_locked || false,
       data.is_block || false,
-      data.repeat_group_id || null
+      data.repeat_group_id || null,
+      data.program_id || null
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -314,11 +337,11 @@ async function deleteScheduledTalk(id) {
 }
 
 // Check for conflicts
-async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = null) {
+async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = null, programId = null) {
   if (useInMemoryStorage) {
     return [];
   } else {
-    const query = `
+    let query = `
       SELECT st.*, ts.first_name, ts.last_name, ts.talk_title
       FROM scheduled_talks st
       LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
@@ -328,7 +351,12 @@ async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = 
         (st.start_time < $3 AND st.end_time > $2)
       )
     `;
-    const result = await pool.query(query, [roomId, startTime, endTime, excludeId]);
+    const params = [roomId, startTime, endTime, excludeId];
+    if (programId) {
+      query += ` AND st.program_id = $5`;
+      params.push(programId);
+    }
+    const result = await pool.query(query, params);
     return result.rows;
   }
 }
@@ -357,8 +385,8 @@ async function createScheduledTalksInBatch(items) {
       const query = `
         INSERT INTO scheduled_talks
         (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *;
       `;
       const values = [
@@ -375,7 +403,8 @@ async function createScheduledTalksInBatch(items) {
         data.notes || null,
         data.is_locked || false,
         true,
-        data.repeat_group_id
+        data.repeat_group_id,
+        data.program_id || null
       ];
       const result = await client.query(query, values);
       results.push(result.rows[0]);
@@ -451,16 +480,16 @@ async function isRepeatGroupLocked(groupId) {
 }
 
 // Create a magic link
-async function createMagicLink(token, label, expiresAt) {
+async function createMagicLink(token, label, expiresAt, programId) {
   if (useInMemoryStorage) {
-    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt };
+    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt, program_id: programId || null };
   }
   const query = `
-    INSERT INTO magic_links (token, label, expires_at)
-    VALUES ($1, $2, $3)
+    INSERT INTO magic_links (token, label, expires_at, program_id)
+    VALUES ($1, $2, $3, $4)
     RETURNING *;
   `;
-  const result = await pool.query(query, [token, label || null, expiresAt || null]);
+  const result = await pool.query(query, [token, label || null, expiresAt || null, programId || null]);
   return result.rows[0];
 }
 
@@ -477,8 +506,13 @@ async function validateMagicLink(token) {
 }
 
 // Get all magic links
-async function getAllMagicLinks() {
+async function getAllMagicLinks(programId) {
   if (useInMemoryStorage) return [];
+  if (programId) {
+    const query = 'SELECT * FROM magic_links WHERE program_id = $1 ORDER BY created_at DESC';
+    const result = await pool.query(query, [programId]);
+    return result.rows;
+  }
   const query = 'SELECT * FROM magic_links ORDER BY created_at DESC';
   const result = await pool.query(query);
   return result.rows;
@@ -498,6 +532,105 @@ async function closeDatabase() {
     await pool.end();
     console.log('Database connection closed');
   }
+}
+
+// Bulk upsert programs from booking app API
+async function upsertPrograms(programs) {
+  if (useInMemoryStorage) return [];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const results = [];
+    for (const p of programs) {
+      const query = `
+        INSERT INTO programs (program_id, name, description, start_date, end_date, status, color, synced_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+        ON CONFLICT (program_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          start_date = EXCLUDED.start_date,
+          end_date = EXCLUDED.end_date,
+          status = EXCLUDED.status,
+          color = EXCLUDED.color,
+          synced_at = CURRENT_TIMESTAMP
+        RETURNING *;
+      `;
+      const values = [
+        p.programId || p.program_id,
+        p.name,
+        p.description || null,
+        p.startDate || p.start_date,
+        p.endDate || p.end_date,
+        p.status || 'PLANNED',
+        p.color || 'purple'
+      ];
+      const result = await client.query(query, values);
+      results.push(result.rows[0]);
+    }
+    await client.query('COMMIT');
+    return results;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// Get all programs
+async function getAllPrograms() {
+  if (useInMemoryStorage) return [];
+  const query = 'SELECT * FROM programs ORDER BY start_date DESC';
+  const result = await pool.query(query);
+  return result.rows;
+}
+
+// Get active/planned programs that haven't ended
+async function getActivePrograms() {
+  if (useInMemoryStorage) return [];
+  const query = `
+    SELECT * FROM programs
+    WHERE (status = 'ACTIVE' OR status = 'PLANNED')
+    AND end_date >= CURRENT_DATE
+    ORDER BY start_date
+  `;
+  const result = await pool.query(query);
+  return result.rows;
+}
+
+// Get a single program by ID
+async function getProgramById(programId) {
+  if (useInMemoryStorage) return null;
+  const query = 'SELECT * FROM programs WHERE program_id = $1';
+  const result = await pool.query(query, [programId]);
+  return result.rows[0] || null;
+}
+
+// Get submissions filtered by program
+async function getSubmissionsByProgram(programId) {
+  if (useInMemoryStorage) return [];
+  const query = 'SELECT * FROM talk_submissions WHERE program_id = $1 ORDER BY submitted_at DESC';
+  const result = await pool.query(query, [programId]);
+  return result.rows;
+}
+
+// Get scheduled talks filtered by program
+async function getScheduledTalksByProgram(programId) {
+  if (useInMemoryStorage) return [];
+  const query = `
+    SELECT
+      st.*,
+      ts.first_name, ts.last_name, ts.email, ts.talk_title,
+      ts.talk_abstract, ts.affiliation, ts.questions,
+      r.name as room_name, r.building as room_building
+    FROM scheduled_talks st
+    LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
+    LEFT JOIN rooms r ON st.room_id = r.id
+    WHERE st.program_id = $1
+    ORDER BY st.start_time
+  `;
+  const result = await pool.query(query, [programId]);
+  return result.rows;
 }
 
 module.exports = {
@@ -521,5 +654,11 @@ module.exports = {
   validateMagicLink,
   getAllMagicLinks,
   deactivateMagicLink,
-  closeDatabase
+  closeDatabase,
+  upsertPrograms,
+  getAllPrograms,
+  getActivePrograms,
+  getProgramById,
+  getSubmissionsByProgram,
+  getScheduledTalksByProgram
 };

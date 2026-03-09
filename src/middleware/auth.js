@@ -27,6 +27,36 @@ function getUserRole(req) {
   return null;
 }
 
+// Check if user has access to a specific program
+function requireProgramAccess(req, res, next) {
+  const programId = req.params.programId;
+
+  if (!programId) {
+    return res.status(400).json({ error: 'Program ID required' });
+  }
+
+  // Admin: always allowed
+  if (req.session && req.session.isAdmin) {
+    req.programId = programId;
+    return next();
+  }
+
+  // External user: must match their session's program
+  if (req.session && req.session.isExternal) {
+    if (req.session.programId === programId) {
+      req.programId = programId;
+      return next();
+    }
+    if (req.accepts('html')) {
+      return res.status(403).render('error', { title: 'Access Denied', message: 'You do not have access to this program.' });
+    }
+    return res.status(403).json({ error: 'Access denied to this program' });
+  }
+
+  // Not authenticated
+  return res.redirect('/admin/login');
+}
+
 // Verify admin password
 async function verifyAdminPassword(password) {
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -92,7 +122,13 @@ async function magicLinkLogin(req, res) {
     req.session.isExternal = true;
     req.session.role = 'external';
     req.session.magicLinkId = link.id;
-    res.redirect('/admin/scheduling');
+    req.session.programId = link.program_id;
+
+    if (link.program_id) {
+      res.redirect(`/admin/p/${link.program_id}/scheduling`);
+    } else {
+      res.redirect('/admin/programs');
+    }
   } catch (error) {
     console.error('Magic link login error:', error);
     res.status(500).render('error', {
@@ -117,6 +153,7 @@ module.exports = {
   isAuthenticated,
   isAdmin,
   getUserRole,
+  requireProgramAccess,
   verifyAdminPassword,
   login,
   magicLinkLogin,

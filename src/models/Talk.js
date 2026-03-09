@@ -24,7 +24,8 @@ class Talk {
       talk_title: data.talkTitle,
       talk_abstract: data.talkAbstract,
       affiliation: data.affiliation,
-      questions: data.questions
+      questions: data.questions,
+      programId: data.programId || data.program_id || null
     };
 
     const result = await db.insertTalkSubmission(submissionData);

@@ -2,9 +2,13 @@
 
 ## Table of Contents
 - [Public Routes](#public-routes)
+- [Program-Scoped Registration](#program-scoped-registration)
 - [Admin Routes](#admin-routes)
+- [Programs Management](#programs-management)
+- [Program-Scoped Admin Routes](#program-scoped-admin-routes)
 - [Scheduling API Routes](#scheduling-api-routes)
 - [System Routes](#system-routes)
+- [Backward Compatibility](#backward-compatibility)
 
 ---
 
@@ -13,9 +17,10 @@
 ### Registration & Submission
 
 #### `GET /`
-**Description:** Display the public registration form for talk submissions
+**Description:** Display listing of active programs with registration links
 **Authentication:** None
-**Response:** Renders `registration.ejs` view
+**Response:** Renders program listing view
+**Note:** Previously rendered the registration form directly; now redirects users to program-specific registration
 
 #### `POST /api/submit`
 **Description:** Submit a new research talk proposal
@@ -39,6 +44,37 @@
 #### `GET /success`
 **Description:** Display submission confirmation page
 **Authentication:** None
+**Query Parameters:**
+- `id` - Submission ID
+**Response:** Renders `success.ejs` view
+
+---
+
+## Program-Scoped Registration
+
+### Public Registration (Program-Specific)
+
+#### `GET /p/:programId/register`
+**Description:** Display program-specific registration form for talk submissions
+**Authentication:** None
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Renders registration form scoped to the specified program
+
+#### `POST /p/:programId/register`
+**Description:** Submit a new research talk proposal for a specific program
+**Authentication:** None (rate-limited: 5 requests per 15 minutes per IP)
+**URL Parameters:**
+- `programId` - Program ID
+**Content-Type:** `application/x-www-form-urlencoded` or `application/json`
+**Body Parameters:** Same validation as `POST /api/submit`
+**Response:** Redirects to `/p/:programId/success?id={submissionId}` on success
+
+#### `GET /p/:programId/success`
+**Description:** Display submission confirmation page for a program-specific submission
+**Authentication:** None
+**URL Parameters:**
+- `programId` - Program ID
 **Query Parameters:**
 - `id` - Submission ID
 **Response:** Renders `success.ejs` view
@@ -76,9 +112,10 @@
 ### Dashboard & Submissions
 
 #### `GET /admin` or `GET /admin/dashboard`
-**Description:** Display admin dashboard with all submissions
+**Description:** Redirects to `/admin/programs` (program listing page)
 **Authentication:** Required
-**Response:** Renders `admin-dashboard.ejs` view with submissions list
+**Response:** `302` redirect to `/admin/programs`
+**Note:** Previously rendered the dashboard directly; now redirects to the programs page
 
 #### `GET /admin/view/:id`
 **Description:** View detailed information for a specific submission
@@ -107,6 +144,90 @@
 **Authentication:** Required
 **Response:** Excel file download (`IML_Talk_Submissions_YYYY-MM-DD.xlsx`)
 **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+### Programs Management
+
+#### `GET /admin/programs`
+**Description:** Display program listing page with all synced programs
+**Authentication:** Admin only
+**Response:** Renders program listing view
+
+#### `POST /admin/programs/sync`
+**Description:** Trigger program sync from IML Booking App
+**Authentication:** Admin only
+**Response:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "message": "5 programs synced"
+}
+```
+**Status Codes:**
+- `200` - Sync completed successfully
+
+### Program-Scoped Admin Routes
+
+#### `GET /admin/p/:programId/dashboard`
+**Description:** Display program-scoped dashboard with submissions for the specified program
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Renders `admin-dashboard.ejs` view scoped to the program
+
+#### `GET /admin/p/:programId/scheduling`
+**Description:** Display program-scoped scheduling management interface
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Renders `admin-scheduling.ejs` view scoped to the program
+
+#### `GET /admin/p/:programId/export`
+**Description:** Export submissions for a specific program to Excel file
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Excel file download (`IML_Talk_Submissions_YYYY-MM-DD.xlsx`)
+**Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+#### `GET /admin/p/:programId/view/:id`
+**Description:** View detailed information for a specific submission within a program
+**Authentication:** Required (admin or external with matching program; external is read-only)
+**URL Parameters:**
+- `programId` - Program ID
+- `id` - Submission ID
+**Response:** Renders `admin-view-submission.ejs` view
+**Status Codes:**
+- `200` - Success
+- `404` - Submission not found
+
+#### `POST /admin/p/:programId/delete/:id`
+**Description:** Delete a talk submission within a program
+**Authentication:** Admin only
+**URL Parameters:**
+- `programId` - Program ID
+- `id` - Submission ID
+**Response:** Redirects to `/admin/p/:programId/dashboard?deleted=true`
+**Status Codes:**
+- `200` - Success
+- `404` - Submission not found
+
+#### `GET /admin/p/:programId/scheduling/export`
+**Description:** Export program schedule to Excel file in the format used for website publishing
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Excel file download (`IML_Schedule_YYYY-MM-DD.xlsx`)
+**Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+#### `GET /admin/p/:programId/scheduling/export-app`
+**Description:** Export published program schedule to Excel file in the event app import format
+**Authentication:** Required (admin or external with matching program)
+**URL Parameters:**
+- `programId` - Program ID
+**Response:** Excel file download (`IML_EventApp_Schedule_YYYY-MM-DD.xlsx`)
+**Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+**Note:** Only exports talks with `status = 'published'`
 
 ### Scheduling
 
@@ -180,6 +301,8 @@
 #### `GET /api/scheduling/submissions`
 **Description:** Get all talk submissions (both scheduled and unscheduled)
 **Authentication:** Required
+**Query Parameters:**
+- `program_id` (optional) - Filter submissions by program ID
 **Response:**
 ```json
 [
@@ -201,6 +324,8 @@
 #### `GET /api/scheduling/unscheduled`
 **Description:** Get only unscheduled talk submissions
 **Authentication:** Required
+**Query Parameters:**
+- `program_id` (optional) - Filter unscheduled submissions by program ID
 **Response:** Same format as `/api/scheduling/submissions` but filtered for unscheduled talks
 
 ### Scheduled Talks
@@ -208,6 +333,8 @@
 #### `GET /api/scheduling/scheduled`
 **Description:** Get all scheduled talks and events
 **Authentication:** Required
+**Query Parameters:**
+- `program_id` (optional) - Filter scheduled talks by program ID
 **Response:**
 ```json
 [
@@ -246,6 +373,7 @@
   "end_time": "datetime (required)",
   "publish_to_website": boolean,
   "notes": "string",
+  "program_id": "number (optional)",
   "event_title": "string (for custom events)",
   "event_speaker": "string (for custom events)",
   "event_affiliation": "string (for custom events)",
@@ -333,6 +461,7 @@
   "end_time": "datetime (required)",
   "is_locked": true,
   "notes": "string",
+  "program_id": "number (optional)",
   "repeat": {
     "pattern": "daily|weekdays|weekly|custom",
     "days": [1, 3],
@@ -415,7 +544,8 @@
   "room_id": 1,
   "start_time": "datetime (required)",
   "end_time": "datetime (required)",
-  "exclude_id": 123
+  "exclude_id": 123,
+  "program_id": "number (optional)"
 }
 ```
 **Response:**
@@ -463,11 +593,11 @@
 ### External Access
 
 #### `GET /schedule/:token`
-**Description:** Magic link login for external users — validates token and redirects to scheduling page
+**Description:** Magic link login for external users — validates token and redirects to program-specific scheduling page
 **Authentication:** None (token-based)
 **URL Parameters:**
 - `token` - 64-character hex token
-**Response:** Redirects to `/admin/scheduling` on success
+**Response:** Redirects to `/admin/p/:programId/scheduling` if the magic link has a `program_id`, otherwise redirects to a program picker
 **Status Codes:**
 - `302` - Valid token, redirect to scheduling
 - `403` - Invalid or expired token
@@ -477,6 +607,8 @@
 #### `GET /admin/magic-links`
 **Description:** Get all magic links
 **Authentication:** Admin only
+**Query Parameters:**
+- `program_id` (optional) - Filter magic links by program ID
 **Response:**
 ```json
 [
@@ -498,7 +630,8 @@
 ```json
 {
   "label": "string (optional)",
-  "expires_at": "datetime (optional)"
+  "expires_at": "datetime (optional)",
+  "program_id": "number (optional)"
 }
 ```
 **Response:** Created magic link object
@@ -590,15 +723,34 @@ Renders `error.ejs` view with:
   - `is_locked` (boolean) - When true, item cannot be edited or deleted (publish still allowed by admin)
   - `is_block` (boolean) - Marks item as a schedule block (distinct visual treatment)
   - `repeat_group_id` (varchar) - UUID linking instances of a repeating block series
+- `programs` - Research programs synced from IML Booking App
+  - `id` (integer) - Program ID (from IML Booking App)
+  - `name` (varchar) - Program name
+  - `start_date` (date) - Program start date
+  - `end_date` (date) - Program end date
+  - `is_active` (boolean) - Whether program accepts registrations
 - `magic_links` - External user access tokens
   - `token` (varchar) - 64-character hex token
   - `label` (varchar) - Optional descriptive label
   - `is_active` (boolean) - Can be deactivated by admin
   - `expires_at` (timestamp) - Optional expiration date
+  - `program_id` (integer, optional) - Scopes the magic link to a specific program
 
 For detailed schema information, see `src/config/database.js`
 
 ---
 
-**Last Updated:** 2026-03-06
-**Version:** 1.2.0
+## Backward Compatibility
+
+The multi-program architecture maintains backward compatibility with the following behavior:
+
+- **`GET /admin/dashboard`** now redirects to `/admin/programs` instead of rendering the dashboard directly
+- **`GET /`** now shows a program listing instead of the registration form; users navigate to `/p/:programId/register` for program-specific registration
+- **All scheduling API endpoints** (`/api/scheduling/*`) continue to work without `program_id` for backward compatibility; omitting it returns unfiltered results
+- **Existing magic links** without a `program_id` redirect to a program picker instead of directly to the scheduling page
+- **`POST /api/submit`** remains functional for non-program-scoped submissions; program-scoped submissions should use `POST /p/:programId/register`
+
+---
+
+**Last Updated:** 2026-03-09
+**Version:** 2.0.0

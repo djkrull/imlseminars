@@ -20,6 +20,21 @@
 
   <!-- Main Content -->
   <main class="container">
+    <% if (program) { %>
+      <h2 class="program-name" style="color: #003E7E; margin-bottom: 0.25rem;"><%= program.name %></h2>
+      <% if (program.start_date) { %>
+        <p style="color: #666; margin-bottom: 1rem;">
+          <%= new Date(program.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+          &ndash;
+          <%= new Date(program.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+        </p>
+      <% } %>
+      <% if (program.description) { %>
+        <div class="info-box" style="margin-bottom: 1.5rem;">
+          <p><%= program.description %></p>
+        </div>
+      <% } %>
+    <% } %>
     <h2 class="page-title">Submit Your Research Talk</h2>
     <p class="page-subtitle">Please fill out the form below to submit your research talk proposal</p>
 
@@ -34,7 +49,8 @@
     <% } %>
 
     <div class="form-card">
-      <form action="/api/submit" method="POST" id="talkForm">
+      <form action="<%= programId ? '/p/' + programId + '/register' : '/api/submit' %>" method="POST" id="talkForm">
+        <input type="hidden" name="programId" value="<%= programId || '' %>">
         <!-- Personal Information -->
         <div class="form-row">
           <div class="form-group">

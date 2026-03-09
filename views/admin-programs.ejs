@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Institut Mittag-Leffler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .program-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .program-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      overflow: hidden;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .program-card:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .program-card-stripe {
+      width: 6px;
+      flex-shrink: 0;
+    }
+
+    .program-card-body {
+      padding: 1.25rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .program-card-body h3 {
+      margin: 0 0 0.5rem 0;
+      color: #003E7E;
+      font-size: 1.1rem;
+    }
+
+    .program-date-range {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .program-description {
+      color: #444;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      flex: 1;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-badge.planned {
+      background: #e9ecef;
+      color: #6c757d;
+    }
+
+    .status-badge.active {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-badge.completed {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    .status-badge.archived {
+      background: #f5f5f5;
+      color: #999;
+    }
+
+    .program-card-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: auto;
+    }
+
+    .program-card-actions .btn {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.8rem;
+    }
+
+    .empty-programs {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #666;
+    }
+
+    .empty-programs p {
+      margin-top: 0.5rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <img src="/images/IML_bla.png" alt="Institut Mittag-Leffler - The Royal Swedish Academy of Sciences" style="height: 80px; width: auto;">
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container" style="max-width: 1400px;">
+    <div class="admin-header">
+      <h2 class="page-title" style="margin: 0;">Programs</h2>
+      <div class="admin-actions">
+        <% if (role === 'admin') { %>
+          <button id="sync-btn" class="btn btn-secondary" onclick="syncPrograms()">Sync from Booking App</button>
+        <% } %>
+        <a href="/admin" class="btn btn-secondary">Dashboard</a>
+        <a href="/admin/logout" class="btn btn-primary">Logout</a>
+      </div>
+    </div>
+
+    <% if (!programs || programs.length === 0) { %>
+      <div class="empty-programs">
+        <div class="empty-state-icon">📋</div>
+        <h3>No programs found</h3>
+        <p>No programs found. Click Sync to import from IML Booking App.</p>
+      </div>
+    <% } else { %>
+      <div class="program-grid">
+        <% programs.forEach(program => { %>
+          <div class="program-card">
+            <div class="program-card-stripe" style="background-color: <%= program.color || '#003E7E' %>;"></div>
+            <div class="program-card-body">
+              <h3><%= program.name %></h3>
+              <div class="program-date-range">
+                <% if (program.start_date && program.end_date) { %>
+                  <%= new Date(program.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                  &ndash;
+                  <%= new Date(program.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                <% } else { %>
+                  Dates TBD
+                <% } %>
+              </div>
+              <%
+                const status = (program.status || 'planned').toLowerCase();
+                let badgeClass = 'planned';
+                if (status === 'active') badgeClass = 'active';
+                else if (status === 'completed') badgeClass = 'completed';
+                else if (status === 'archived') badgeClass = 'archived';
+              %>
+              <span class="status-badge <%= badgeClass %>"><%= (program.status || 'PLANNED').toUpperCase() %></span>
+              <% if (program.description) { %>
+                <div class="program-description">
+                  <%= program.description.length > 100 ? program.description.substring(0, 100) + '...' : program.description %>
+                </div>
+              <% } %>
+              <div class="program-card-actions">
+                <a href="/admin/p/<%= program.program_id %>/dashboard" class="btn btn-primary">Dashboard</a>
+                <a href="/admin/p/<%= program.program_id %>/scheduling" class="btn btn-secondary">Schedule</a>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </main>
+
+  <script>
+    async function syncPrograms() {
+      const btn = document.getElementById('sync-btn');
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      try {
+        const res = await fetch('/admin/programs/sync', { method: 'POST', credentials: 'same-origin' });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          alert('Sync failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Sync failed: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sync from Booking App';
+      }
+    }
+  </script>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <%= new Date().getFullYear() %> Institut Mittag-Leffler</p>
+    <p>The Royal Swedish Academy of Sciences</p>
+  </footer>
+</body>
+</html>
