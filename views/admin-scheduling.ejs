@@ -1482,11 +1482,13 @@
         room_id: document.getElementById('modal-room').value,
         start_time: document.getElementById('modal-start').value,
         end_time: document.getElementById('modal-end').value,
-        publish_to_website: document.getElementById('modal-publish') ? document.getElementById('modal-publish').checked : false,
         notes: document.getElementById('modal-notes').value,
         program_id: '<%= programId %>',
         workshop_id: WORKSHOP_ID || undefined
       };
+      if (IS_ADMIN && document.getElementById('modal-publish')) {
+        data.publish_to_website = document.getElementById('modal-publish').checked;
+      }
 
       try {
         const url = talkId
@@ -1525,10 +1527,12 @@
         room_id: document.getElementById('event-room').value,
         start_time: document.getElementById('event-start').value,
         end_time: document.getElementById('event-end').value,
-        publish_to_website: document.getElementById('event-publish') ? document.getElementById('event-publish').checked : false,
         program_id: '<%= programId %>',
         workshop_id: WORKSHOP_ID || undefined
       };
+      if (IS_ADMIN && document.getElementById('event-publish')) {
+        data.publish_to_website = document.getElementById('event-publish').checked;
+      }
 
       try {
         const url = talkId
@@ -1824,7 +1828,7 @@
       const roomId = document.getElementById('block-room').value;
       const startTime = document.getElementById('block-start').value;
       const endTime = document.getElementById('block-end').value;
-      const isLocked = document.getElementById('block-locked') ? document.getElementById('block-locked').checked : false;
+      const isLocked = IS_ADMIN && document.getElementById('block-locked') ? document.getElementById('block-locked').checked : undefined;
       const notes = document.getElementById('block-notes').value;
       const repeatPattern = document.getElementById('block-repeat').value;
 
@@ -1839,7 +1843,7 @@
               const response = await fetch(`/api/scheduling/blocks/group/${repeatGroupId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event_title: title, room_id: roomId || null, is_locked: isLocked, notes, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }),
+                body: JSON.stringify(Object.assign({ event_title: title, room_id: roomId || null, notes, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }, isLocked !== undefined ? { is_locked: isLocked } : {})),
                 credentials: 'same-origin'
               });
               if (response.ok) {
@@ -1861,16 +1865,15 @@
           const response = await fetch(`/api/scheduling/schedule/${editId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: JSON.stringify(Object.assign({
               event_title: title,
               room_id: roomId || null,
               start_time: startTime,
               end_time: endTime,
-              is_locked: isLocked,
               notes,
               program_id: '<%= programId %>',
               workshop_id: WORKSHOP_ID || undefined
-            }),
+            }, isLocked !== undefined ? { is_locked: isLocked } : {})),
             credentials: 'same-origin'
           });
 
@@ -1889,16 +1892,15 @@
       }
 
       // Creating new block
-      const data = {
+      const data = Object.assign({
         event_title: title,
         room_id: roomId || null,
         start_time: startTime,
         end_time: endTime,
-        is_locked: isLocked,
         notes,
         program_id: '<%= programId %>',
         workshop_id: WORKSHOP_ID || undefined
-      };
+      }, isLocked !== undefined ? { is_locked: isLocked } : {});
 
       if (repeatPattern) {
         data.repeat = {
