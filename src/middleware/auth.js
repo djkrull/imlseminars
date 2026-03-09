@@ -100,7 +100,7 @@ async function login(req, res) {
       req.session.isAdmin = true;
       req.session.isExternal = false;
       req.session.role = 'admin';
-      res.redirect('/admin/dashboard');
+      res.redirect('/admin/programs');
     } else {
       res.render('admin-login', {
         title: 'Admin Login',
