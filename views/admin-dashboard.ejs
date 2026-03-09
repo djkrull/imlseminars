@@ -202,8 +202,7 @@
           return `<tr>
             <td>${link.label || '<em>No label</em>'}</td>
             <td>
-              <code style="font-size: 0.8rem; word-break: break-all;">${url}</code>
-              <button onclick="copyLink('${url}')" style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; background: white;">Copy</button>
+              <button onclick="copyLink(this, '${url}')" style="padding: 0.3rem 0.75rem; border: 1px solid #003E7E; border-radius: 4px; cursor: pointer; background: #003E7E; color: white; font-size: 0.85rem;">Copy Link</button>
             </td>
             <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
             <td>${new Date(link.created_at).toLocaleDateString()}</td>
@@ -230,9 +229,17 @@
       document.getElementById('link-modal').style.display = 'none';
     }
 
-    function copyLink(url) {
+    function copyLink(btn, url) {
       navigator.clipboard.writeText(url).then(() => {
-        alert('Link copied to clipboard!');
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.style.background = '#228B22';
+        btn.style.borderColor = '#228B22';
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.style.background = '#003E7E';
+          btn.style.borderColor = '#003E7E';
+        }, 2000);
       });
     }
 
