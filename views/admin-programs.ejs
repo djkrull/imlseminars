@@ -102,6 +102,31 @@
       padding: 0.4rem 0.8rem;
     }
 
+    /* Program color scheme — matches IML Booking QuickNav */
+    .program-card.color-amber { border-left: 5px solid #f59e0b; }
+    .program-card.color-amber .program-card-stripe { background: #f59e0b; }
+    .program-card.color-amber h3 { color: #92400e; }
+
+    .program-card.color-blue { border-left: 5px solid #3b82f6; }
+    .program-card.color-blue .program-card-stripe { background: #3b82f6; }
+    .program-card.color-blue h3 { color: #1e40af; }
+
+    .program-card.color-green { border-left: 5px solid #22c55e; }
+    .program-card.color-green .program-card-stripe { background: #22c55e; }
+    .program-card.color-green h3 { color: #166534; }
+
+    .program-card.color-gray { border-left: 5px solid #6b7280; }
+    .program-card.color-gray .program-card-stripe { background: #6b7280; }
+    .program-card.color-gray h3 { color: #374151; }
+
+    .program-card.color-red { border-left: 5px solid #ef4444; }
+    .program-card.color-red .program-card-stripe { background: #ef4444; }
+    .program-card.color-red h3 { color: #991b1b; }
+
+    .program-card.color-purple { border-left: 5px solid #a855f7; }
+    .program-card.color-purple .program-card-stripe { background: #a855f7; }
+    .program-card.color-purple h3 { color: #6b21a8; }
+
     .empty-programs {
       text-align: center;
       padding: 3rem 1rem;
@@ -144,8 +169,8 @@
     <% } else { %>
       <div class="program-grid">
         <% programs.forEach(program => { %>
-          <div class="program-card">
-            <div class="program-card-stripe" style="background-color: <%= program.color || '#003E7E' %>;"></div>
+          <div class="program-card color-<%= program.color || 'purple' %>">
+            <div class="program-card-stripe"></div>
             <div class="program-card-body">
               <h3><%= program.name %></h3>
               <div class="program-date-range">
