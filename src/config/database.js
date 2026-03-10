@@ -626,7 +626,7 @@ async function upsertPrograms(programs) {
 // Get all programs
 async function getAllPrograms() {
   if (useInMemoryStorage) return [];
-  const query = "SELECT * FROM programs WHERE status NOT IN ('COMPLETED', 'ARCHIVED') ORDER BY start_date ASC";
+  const query = "SELECT * FROM programs WHERE status NOT IN ('COMPLETED', 'ARCHIVED') AND name NOT IN ('Contractors') ORDER BY start_date ASC";
   const result = await pool.query(query);
   return result.rows;
 }
@@ -638,6 +638,7 @@ async function getActivePrograms() {
     SELECT * FROM programs
     WHERE (status = 'ACTIVE' OR status = 'PLANNED')
     AND end_date >= CURRENT_DATE
+    AND name NOT IN ('Contractors')
     ORDER BY start_date
   `;
   const result = await pool.query(query);
