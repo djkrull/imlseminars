@@ -225,7 +225,9 @@ body {
 
 /* Success Page */
 .success-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: url('/images/Brand%20screen_640x440.png');
+  background-size: cover;
+  background-position: center;
   color: white;
   border-radius: 8px;
   padding: 3rem;

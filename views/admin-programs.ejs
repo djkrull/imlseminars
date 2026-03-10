@@ -172,7 +172,7 @@
           <div class="program-card color-<%= program.color || 'purple' %>">
             <div class="program-card-stripe"></div>
             <div class="program-card-body">
-              <h3><%= program.name %></h3>
+              <h3 style="color: #003E7E;"><%= program.name %></h3>
               <div class="program-date-range">
                 <% if (program.start_date && program.end_date) { %>
                   <%= new Date(program.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>

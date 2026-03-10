@@ -96,7 +96,7 @@
       <div class="program-list">
         <% programs.forEach(program => { %>
           <div class="program-list-card color-<%= program.color || 'purple' %>">
-            <h3><%= program.name %></h3>
+            <h3 style="color: #003E7E;"><%= program.name %></h3>
             <div class="program-list-date">
               <% if (program.start_date && program.end_date) { %>
                 <%= new Date(program.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %>

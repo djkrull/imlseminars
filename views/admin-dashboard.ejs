@@ -228,6 +228,7 @@
               ${link.is_active
                 ? `<button onclick="deactivateLink(${link.id})" class="btn btn-sm" style="background: #DC143C; color: white; border: none; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer;">Deactivate</button>`
                 : ''}
+              <button onclick="deleteLink(${link.id})" class="btn btn-sm" style="background: #666; color: white; border: none; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer; margin-left: 0.25rem;">Delete</button>
             </td>
           </tr>`;
         }).join('');
@@ -274,6 +275,23 @@
         }
       } catch (error) {
         console.error('Error deactivating link:', error);
+      }
+    }
+
+    async function deleteLink(id) {
+      if (!confirm('Delete this link permanently? This cannot be undone.')) return;
+      try {
+        const response = await fetch(`/admin/magic-links/${id}`, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+        if (response.ok) {
+          loadMagicLinks();
+        } else {
+          alert('Failed to delete link');
+        }
+      } catch (error) {
+        console.error('Error deleting link:', error);
       }
     }
 

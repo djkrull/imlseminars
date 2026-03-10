@@ -943,4 +943,19 @@ router.post('/magic-links/:id/deactivate', isAdmin, async (req, res) => {
   }
 });
 
+// DELETE /admin/magic-links/:id - Delete a magic link
+router.delete('/magic-links/:id', isAdmin, async (req, res) => {
+  try {
+    const result = await db.query('DELETE FROM magic_links WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length > 0) {
+      res.json({ message: 'Magic link deleted' });
+    } else {
+      res.status(404).json({ error: 'Magic link not found' });
+    }
+  } catch (error) {
+    console.error('Error deleting magic link:', error);
+    res.status(500).json({ error: 'Failed to delete magic link' });
+  }
+});
+
 module.exports = router;
