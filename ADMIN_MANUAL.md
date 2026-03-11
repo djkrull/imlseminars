@@ -91,7 +91,6 @@ Med länken kan organisatören:
 
 Organisatören kan **inte**:
 
-- Se inskickade föredrag (submissions)
 - Publicera föredrag till webbplatsen
 - Låsa/låsa upp poster
 - Exportera schema eller data
@@ -344,7 +343,7 @@ Du kan skapa delningslänkar som ger tillgång till en specifik workshop iställ
 | Funktion | Admin | Organisatör (magic link) |
 |----------|:-----:|:------------------------:|
 | Se program & synka | ✓ | — |
-| Se inskickade föredrag | ✓ | — |
+| Se inskickade föredrag | ✓ | ✓ |
 | Ta bort inskickningar | ✓ | — |
 | Exportera inskickningar | ✓ | — |
 | Se/skapa/redigera schema | ✓ | ✓ |

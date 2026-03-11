@@ -74,6 +74,7 @@ router.get('/p/:programId/dashboard', isAuthenticated, requireProgramAccess, asy
     const workshops = await db.getWorkshopsByProgram(programId);
     res.render('admin-dashboard', {
       title: program.name + ' - Dashboard',
+      role: getUserRole(req),
       talks: talkObjects,
       totalSubmissions: talkObjects.length,
       program,

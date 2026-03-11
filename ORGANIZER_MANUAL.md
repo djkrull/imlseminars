@@ -197,7 +197,7 @@ Som organisatör (via delad länk) har du **inte** tillgång till:
 | Se/redigera schemat | Ja |
 | Skapa events och block | Ja |
 | Ta bort olåsta poster | Ja |
-| Se inskickade föredrag (detaljer) | Nej |
+| Se inskickade föredrag (detaljer) | Ja |
 | Publicera föredrag till webbplatsen | Nej |
 | Låsa/låsa upp poster | Nej |
 | Exportera schema (Excel) | Nej |

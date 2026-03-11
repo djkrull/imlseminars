@@ -519,10 +519,10 @@
           <a href="<%= (typeof workshopId !== 'undefined' && workshopId) ? '/admin/p/' + programId + '/ws/' + workshopId + '/scheduling/export' : '/admin/p/' + programId + '/scheduling/export' %>" class="btn btn-secondary">
             Export to Excel
           </a>
-          <a href="/admin/dashboard" class="btn btn-secondary">
-            View Submissions
-          </a>
         <% } %>
+        <a href="/admin/p/<%= programId %>/dashboard" class="btn btn-secondary">
+          View Submissions
+        </a>
         <a href="/admin/logout" class="btn btn-primary">
           Logout
         </a>
