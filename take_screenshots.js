@@ -175,6 +175,32 @@ async function takeScreenshots() {
       }
     }
 
+    // --- Public pages (no login needed) ---
+
+    // 13. Program listing (public)
+    const page2 = await browser.newPage();
+    await page2.setViewport({ width: 1400, height: 900 });
+
+    console.log('📸 Public program listing...');
+    await page2.goto(`${BASE_URL}/`, { waitUntil: 'networkidle0' });
+    await delay(500);
+    await page2.screenshot({ path: path.join(SCREENSHOT_DIR, '13-program-listing.png'), fullPage: false });
+
+    // 14. Find a registration link and take screenshot
+    const registerLink = await page2.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href*="register"]'));
+      return links.length > 0 ? links[0].href : null;
+    });
+
+    if (registerLink) {
+      console.log('📸 Registration form...');
+      await page2.goto(registerLink, { waitUntil: 'networkidle0' });
+      await delay(500);
+      await page2.screenshot({ path: path.join(SCREENSHOT_DIR, '14-registration-form.png'), fullPage: true });
+    }
+
+    await page2.close();
+
     console.log('\n✅ Screenshots saved to public/images/screenshots/');
 
   } catch (err) {
