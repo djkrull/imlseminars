@@ -325,6 +325,8 @@ Klicka på hänglåsikonen igen för att låsa upp.
 
 Vissa program har workshops (delprogram). Dessa visas på programmets Dashboard.
 
+![Workshops och delningslänkar](public/images/screenshots/05a-workshops.png)
+
 ### Schemalägg en workshop
 
 1. Klicka **"Schedule"** på workshop-kortet

@@ -64,6 +64,22 @@ async function takeScreenshots() {
     await delay(300);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-submissions.png'), fullPage: false });
 
+    // 5b. Dashboard - scroll to workshops section
+    console.log('📸 Workshops section...');
+    const workshopsHeader = await page.evaluate(() => {
+      const headers = Array.from(document.querySelectorAll('h3'));
+      const wsHeader = headers.find(h => h.textContent.includes('Workshops'));
+      if (wsHeader) {
+        wsHeader.scrollIntoView({ behavior: 'instant', block: 'start' });
+        return true;
+      }
+      return false;
+    });
+    if (workshopsHeader) {
+      await delay(300);
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, '05a-workshops.png'), fullPage: false });
+    }
+
     // 6. Dashboard - scroll to magic links
     console.log('📸 Magic links section...');
     const magicLinksHeader = await page.evaluate(() => {
