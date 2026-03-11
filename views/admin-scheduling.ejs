@@ -492,7 +492,7 @@
     <% if (role === 'admin') { %>
       <a href="/admin/programs" style="display: inline-block; color: #003E7E; text-decoration: none; font-size: 0.9rem; margin-bottom: 0.5rem;">&larr; Programs</a>
     <% } %>
-    <% if (program) { %>
+    <% if (typeof program !== 'undefined' && program) { %>
       <h1 style="margin: 0.25rem 0 0.25rem 0; color: #003E7E;"><%= program.name %></h1>
     <% } %>
     <% if (typeof workshop !== 'undefined' && workshop) { %>
