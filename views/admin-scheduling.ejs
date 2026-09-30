@@ -179,6 +179,17 @@
       border-bottom: 1px solid #eee;
     }
 
+    .cal-cell.drop-zone {
+      background: #e8f4f8;
+      border: 2px dashed #003E7E;
+      box-sizing: border-box;
+    }
+
+    /* While dragging, calendar cards must not intercept the drop event */
+    .cal-grid.drag-active .cal-card {
+      pointer-events: none;
+    }
+
     .cal-cell:hover {
       background: #f0f4f8;
     }
@@ -223,14 +234,32 @@
       font-size: 0.65rem;
     }
 
-    /* Card color variants */
-    .cal-card.card-talk { background: #d4edda; border-color: #228B22; }
-    .cal-card.card-jrf { background: #fef3e0; border-color: #D4AF37; }
-    .cal-card.card-event { background: #d6eaf8; border-color: #4682B4; }
+    /* Card color variants: talks blue, blocks/events gold, published = gold border on talk blue */
+    .cal-card.card-talk { background: #d6eaf8; border-color: #003E7E; }
+    .cal-card.card-jrf { background: #d6eaf8; border-color: #003E7E; }
+    .cal-card.card-event { background: #f9edc6; border-color: #D4AF37; }
     .cal-card.card-block { background: #f9edc6; border-color: #D4AF37; }
-    .cal-card.card-published { background: #fff3cd; border-color: #D4AF37; }
+    .cal-card.card-published { background: #d6eaf8; border-color: #D4AF37; }
     .cal-card.card-locked { opacity: 0.85; }
+    /* Past days: greyed-out columns and cards (still visible for reference) */
+    .cal-col-header.day-past { background: #f0f0f0; color: #999; }
+    .cal-cell.day-past-cell { background: #fafafa; }
+    .cal-cell.day-past-cell:hover { background: #f2f2f2; }
+    .cal-card.card-past { opacity: 0.35; filter: grayscale(0.7); }
     .cal-card .cal-lock { font-size: 0.6rem; position: absolute; top: 1px; right: 2px; }
+    .cal-card .cal-delete {
+      display: none;
+      position: absolute;
+      top: 1px;
+      right: 2px;
+      cursor: pointer;
+      color: #DC143C;
+      font-size: 0.75rem;
+      line-height: 1;
+      font-weight: bold;
+      z-index: 2;
+    }
+    .cal-card:hover .cal-delete { display: block; }
 
     .jrf-badge {
       display: inline-block;
@@ -508,6 +537,12 @@
     <% if (typeof program !== 'undefined' && program) { %>
       <h1 style="margin: 0.25rem 0 0.25rem 0; color: #003E7E;"><%= program.name %></h1>
     <% } %>
+    <% if (typeof jrfScope !== 'undefined' && jrfScope) { %>
+      <p style="margin: 0.25rem 0 0.5rem 0; color: #8a6d00; font-size: 0.9rem;">
+        <span style="background: #D4AF37; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-weight: bold;">JRF</span>
+        You are managing the Junior Fellows Seminar schedule — only JRF submissions and items are shown.
+      </p>
+    <% } %>
     <% if (typeof workshop !== 'undefined' && workshop) { %>
       <h2 style="margin: 0 0 0.5rem 0; color: #666; font-size: 1.1rem;"><%= workshop.name %></h2>
     <% } %>
@@ -572,6 +607,19 @@
 
         <div id="blocks-tab" class="tab-content">
           <h3>Add Schedule Block</h3>
+          <% if (typeof programId !== 'undefined' && programId) { %>
+          <div style="margin-bottom: 1rem;">
+            <p style="margin: 0 0 0.5rem 0; font-size: 0.85rem; font-weight: bold; color: #003E7E;">Standard blocks</p>
+            <p style="margin: 0 0 0.75rem 0; font-size: 0.8rem; color: #666;">
+              Inserted on the current week and repeated weekly until the program ends. Drag to adjust.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <button class="btn btn-secondary" onclick="insertPresetBlock('Coffee break', 15, '10:00')" style="text-align: left;">&#9749; Coffee break (15 min)</button>
+              <button class="btn btn-secondary" onclick="insertPresetBlock('Coffee break', 30, '15:00')" style="text-align: left;">&#9749; Coffee break (30 min)</button>
+              <button class="btn btn-secondary" onclick="insertPresetBlock('Lunch', 60, '12:00')" style="text-align: left;">&#127869; Lunch</button>
+            </div>
+          </div>
+          <% } %>
           <button class="btn btn-primary btn-add-event" onclick="showBlockModal()">
             + New Block
           </button>
@@ -594,15 +642,15 @@
             <select id="view-mode" onchange="changeViewMode()" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
               <option value="list">List View</option>
               <option value="daily">Daily View</option>
-              <option value="week">Week View</option>
+              <option value="week" selected>Week View</option>
             </select>
           </div>
         </div>
 
         <div id="calendar-nav" class="calendar-nav" style="display: none;">
-          <button class="btn btn-secondary" onclick="navigateCalendar(-1)">&#9664; Prev</button>
+          <button class="btn btn-secondary" id="nav-prev" onclick="navigateCalendar(-1)">&#9664; Prev</button>
           <span id="calendar-date-label" class="date-label"></span>
-          <button class="btn btn-secondary" onclick="navigateCalendar(1)">Next &#9654;</button>
+          <button class="btn btn-secondary" id="nav-next" onclick="navigateCalendar(1)">Next &#9654;</button>
           <button class="btn btn-secondary" onclick="navigateToToday()">Today</button>
         </div>
 
@@ -715,6 +763,19 @@
         </div>
 
         <div class="form-group">
+          <label>Color</label>
+          <select id="event-color">
+            <option value="">Default (gold)</option>
+            <option value="#003E7E">Blue</option>
+            <option value="#D4AF37">Gold</option>
+            <option value="#228B22">Green</option>
+            <option value="#DC143C">Red</option>
+            <option value="#7B1FA2">Purple</option>
+            <option value="#546E7A">Grey</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label>Start Time *</label>
           <input type="datetime-local" id="event-start" required>
         </div>
@@ -755,6 +816,19 @@
           <label>Room (optional)</label>
           <select id="block-room">
             <option value="">No room</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Color</label>
+          <select id="block-color">
+            <option value="">Default (gold)</option>
+            <option value="#003E7E">Blue</option>
+            <option value="#D4AF37">Gold</option>
+            <option value="#228B22">Green</option>
+            <option value="#DC143C">Red</option>
+            <option value="#7B1FA2">Purple</option>
+            <option value="#546E7A">Grey</option>
           </select>
         </div>
 
@@ -828,13 +902,22 @@
     const USER_ROLE = '<%= role %>';
     const IS_ADMIN = USER_ROLE === 'admin';
     const WORKSHOP_ID = '<%= typeof workshopId !== "undefined" && workshopId ? workshopId : "" %>';
+    const PROGRAM_ID = '<%= typeof programId !== "undefined" ? programId : "" %>';
+    // Program span (YYYY-MM-DD) — bounds the week view; empty when no program context
+    const PROGRAM_START = '<%= typeof programStart !== "undefined" && programStart ? programStart : "" %>';
+    const PROGRAM_END = '<%= typeof programEnd !== "undefined" && programEnd ? programEnd : "" %>';
+    const JRF_SCOPE = '<%= typeof jrfScope !== "undefined" && jrfScope ? "true" : "false" %>' === 'true';
     let rooms = [];
     let submissions = [];
     let scheduledTalks = [];
     let draggedItem = null;
-    let currentViewMode = 'list';
+    let draggedTalk = null;
+    let currentViewMode = 'week';
     let currentViewDate = null;
     let currentWeekStart = null;
+    let weekDays = [];
+    let weekStartHour = 8;
+    let dayStartHour = 8;
 
     // Load initial data
     async function loadData() {
@@ -853,6 +936,7 @@
         populateRoomSelects();
         renderUnscheduledSubmissions();
         renderSchedule();
+        initView();
         checkConflicts();
       } catch (error) {
         console.error('Error loading data:', error);
@@ -920,6 +1004,37 @@
       return date;
     }
 
+    // ── Program week bounds ──
+    // The week view covers the weeks the program is running. Past days/weeks
+    // are still visible but greyed out (cards and cells), so navigation spans
+    // the full program period.
+    function getProgramBounds() {
+      if (!PROGRAM_START || !PROGRAM_END) return null;
+      const minMonday = getMonday(PROGRAM_START + 'T00:00:00');
+      const maxMonday = getMonday(PROGRAM_END + 'T00:00:00');
+      return {
+        minMonday: minMonday,
+        maxMonday: maxMonday
+      };
+    }
+    const PROGRAM_BOUNDS = getProgramBounds();
+
+    function initView() {
+      if (currentViewMode === 'week') {
+        document.getElementById('calendar-nav').style.display = 'flex';
+        if (!currentWeekStart) {
+          // Start on the current week, clamped to the program period
+          let ref = getFirstScheduledDate() || new Date();
+          if (PROGRAM_BOUNDS) {
+            if (ref < PROGRAM_BOUNDS.minMonday) ref = PROGRAM_BOUNDS.minMonday;
+            if (ref > PROGRAM_BOUNDS.maxMonday) ref = PROGRAM_BOUNDS.maxMonday;
+          }
+          currentWeekStart = getMonday(ref);
+        }
+        updateCalendarLabel();
+      }
+    }
+
     function getFirstScheduledDate() {
       if (scheduledTalks.length === 0) return null;
       let earliest = new Date(scheduledTalks[0].start_time);
@@ -945,12 +1060,19 @@
 
     function updateCalendarLabel() {
       const label = document.getElementById('calendar-date-label');
+      const prevBtn = document.getElementById('nav-prev');
+      const nextBtn = document.getElementById('nav-next');
       if (currentViewMode === 'daily' && currentViewDate) {
         label.textContent = formatDateLabel(currentViewDate);
+        prevBtn.disabled = false;
+        nextBtn.disabled = false;
       } else if (currentViewMode === 'week' && currentWeekStart) {
         const end = new Date(currentWeekStart);
         end.setDate(end.getDate() + 4);
         label.textContent = formatShortDate(currentWeekStart) + ' – ' + formatShortDate(end);
+        // Navigation is limited to the program's running weeks; past days are greyed out instead of hidden
+        prevBtn.disabled = Boolean(PROGRAM_BOUNDS && currentWeekStart <= PROGRAM_BOUNDS.minMonday);
+        nextBtn.disabled = Boolean(PROGRAM_BOUNDS && currentWeekStart >= PROGRAM_BOUNDS.maxMonday);
       }
     }
 
@@ -959,6 +1081,10 @@
         currentViewDate.setDate(currentViewDate.getDate() + dir);
       } else if (currentViewMode === 'week') {
         currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
+        if (PROGRAM_BOUNDS) {
+          if (currentWeekStart < PROGRAM_BOUNDS.minMonday) currentWeekStart = new Date(PROGRAM_BOUNDS.minMonday);
+          if (currentWeekStart > PROGRAM_BOUNDS.maxMonday) currentWeekStart = new Date(PROGRAM_BOUNDS.maxMonday);
+        }
       }
       updateCalendarLabel();
       renderSchedule();
@@ -967,7 +1093,9 @@
     function navigateToToday() {
       currentViewDate = new Date();
       currentViewDate.setHours(0, 0, 0, 0);
-      currentWeekStart = getMonday(new Date());
+      const ref = PROGRAM_BOUNDS ? PROGRAM_BOUNDS.minMonday : new Date();
+      currentWeekStart = getMonday(ref);
+      if (PROGRAM_BOUNDS && currentWeekStart > PROGRAM_BOUNDS.maxMonday) currentWeekStart = new Date(PROGRAM_BOUNDS.maxMonday);
       updateCalendarLabel();
       renderSchedule();
     }
@@ -990,6 +1118,12 @@
       if (talk.status === 'published') return 'card-published';
       if (talk.submission_type === 'jrf') return 'card-jrf';
       return 'card-talk';
+    }
+
+    // Custom color chosen when adding the event/block overrides the type color
+    function talkColorStyle(talk) {
+      if (!talk.color) return '';
+      return `background: ${talk.color}26; border-left-color: ${talk.color};`;
     }
 
     function jrfBadge(talk) {
@@ -1121,6 +1255,8 @@
     function renderDailyView(container) {
       const dayTalks = scheduledTalks.filter(t => sameDay(new Date(t.start_time), currentViewDate));
       const SLOT_H = 40; // px per 30-min slot
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const dayIsPast = currentViewDate < todayMidnight;
 
       if (dayTalks.length === 0 && rooms.length === 0) {
         container.innerHTML = `<div style="text-align: center; padding: 3rem; color: #666;">No events on this day.</div>`;
@@ -1128,6 +1264,7 @@
       }
 
       const { startHour, endHour } = dayTalks.length > 0 ? getTimeRange(dayTalks) : { startHour: 8, endHour: 18 };
+      dayStartHour = startHour;
       const totalSlots = (endHour - startHour) * 2;
       const colCount = rooms.length || 1;
 
@@ -1148,7 +1285,8 @@
         html += `<div class="cal-time" style="grid-row: ${s + 2}; grid-column: 1;">${m === 0 ? timeStr : ''}</div>`;
 
         rooms.forEach((r, ri) => {
-          html += `<div class="cal-cell" style="grid-row: ${s + 2}; grid-column: ${ri + 2};"></div>`;
+          html += `<div class="cal-cell${dayIsPast ? ' day-past-cell' : ''}" style="grid-row: ${s + 2}; grid-column: ${ri + 2};"
+            ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event, null, ${s})"></div>`;
         });
       }
 
@@ -1239,13 +1377,28 @@
         const endTimeStr = et.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
         const cardClass = talkCardClass(talk);
         const lockIcon = talk.is_locked ? '<span class="cal-lock">🔒</span>' : '';
+        const deleteBtn = (!talk.is_locked) ? `<span class="cal-delete" onclick="deleteTalk(event, ${talk.id}, '${talk.repeat_group_id || ''}')">&times;</span>` : '';
 
         const card = document.createElement('div');
-        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}`;
-        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
+        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}${dayIsPast ? ' card-past' : ''}`;
+        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;${talkColorStyle(talk)}`;
         card.title = `${talkTitle(talk)} (${startTimeStr}-${endTimeStr})`;
-        if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
-        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}`;
+        if (!talk.is_locked) {
+          card.onclick = () => editScheduledTalk(talk.id);
+          // Unlocked cards can be dragged to a new slot/room
+          card.draggable = true;
+          card.ondragstart = (e) => {
+            draggedTalk = talk;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'talk:' + talk.id);
+            beginCalendarDrag();
+          };
+          card.ondragend = () => {
+            draggedTalk = null;
+            endCalendarDrag();
+          };
+        }
+        card.innerHTML = `${lockIcon}${deleteBtn}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}`;
 
         grid.appendChild(card);
       });
@@ -1261,6 +1414,7 @@
         d.setDate(d.getDate() + i);
         days.push(d);
       }
+      weekDays = days;
 
       const weekTalks = scheduledTalks.filter(t => {
         const td = new Date(t.start_time);
@@ -1268,7 +1422,11 @@
       });
 
       const { startHour, endHour } = weekTalks.length > 0 ? getTimeRange(weekTalks) : { startHour: 8, endHour: 18 };
+      weekStartHour = startHour;
       const totalSlots = (endHour - startHour) * 2;
+
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const isPast = (d) => d < todayMidnight;
 
       let html = `<div class="cal-grid" style="grid-template-columns: 60px repeat(5, 1fr); grid-template-rows: auto repeat(${totalSlots}, ${SLOT_H}px); position: relative;">`;
 
@@ -1276,17 +1434,20 @@
       html += `<div class="cal-corner"></div>`;
       days.forEach(d => {
         const isToday = sameDay(d, new Date());
-        html += `<div class="cal-col-header" style="${isToday ? 'background: #1e40af;' : ''}">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</div>`;
+        const pastClass = isPast(d) ? ' day-past' : '';
+        html += `<div class="cal-col-header${pastClass}" style="${isToday ? 'background: #1e40af;' : ''}">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</div>`;
       });
 
-      // Time rows + cells
+      // Time rows + cells (cells are drop targets; past days are greyed out)
       for (let s = 0; s < totalSlots; s++) {
         const h = startHour + Math.floor(s / 2);
         const m = (s % 2) * 30;
         const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         html += `<div class="cal-time" style="grid-row: ${s + 2}; grid-column: 1;">${m === 0 ? timeStr : ''}</div>`;
         for (let di = 0; di < 5; di++) {
-          html += `<div class="cal-cell" data-day="${di}" style="grid-row: ${s + 2}; grid-column: ${di + 2};"></div>`;
+          const pastClass = isPast(days[di]) ? ' day-past-cell' : '';
+          html += `<div class="cal-cell${pastClass}" data-day="${di}" style="grid-row: ${s + 2}; grid-column: ${di + 2};"
+            ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event, ${di}, ${s})"></div>`;
         }
       }
 
@@ -1322,13 +1483,29 @@
         const endTimeStr = et.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false });
         const cardClass = talkCardClass(talk);
         const lockIcon = talk.is_locked ? '<span class="cal-lock">🔒</span>' : '';
+        const deleteBtn = (!talk.is_locked) ? `<span class="cal-delete" onclick="deleteTalk(event, ${talk.id}, '${talk.repeat_group_id || ''}')">&times;</span>` : '';
 
         const card = document.createElement('div');
-        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}`;
-        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
+        const dayIsPast = isPast(days[dayIdx]);
+        card.className = `cal-card ${cardClass}${talk.is_locked ? ' card-locked' : ''}${dayIsPast ? ' card-past' : ''}`;
+        card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;${talkColorStyle(talk)}`;
         card.title = `${talkTitle(talk)} – ${talkSpeaker(talk)}\n${talk.room_name || 'No room'}\n${startTimeStr}-${endTimeStr}`;
-        if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
-        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${talk.room_name || ''} ${startTimeStr}-${endTimeStr}</div>` : ''}`;
+        if (!talk.is_locked) {
+          card.onclick = () => editScheduledTalk(talk.id);
+          // Unlocked cards can be dragged to a new slot/day
+          card.draggable = true;
+          card.ondragstart = (e) => {
+            draggedTalk = talk;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'talk:' + talk.id);
+            beginCalendarDrag();
+          };
+          card.ondragend = () => {
+            draggedTalk = null;
+            endCalendarDrag();
+          };
+        }
+        card.innerHTML = `${lockIcon}${deleteBtn}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${talk.room_name || ''} ${startTimeStr}-${endTimeStr}</div>` : ''}`;
 
         grid.appendChild(card);
       });
@@ -1343,7 +1520,10 @@
           const t1 = scheduledTalks[i];
           const t2 = scheduledTalks[j];
 
-          if (t1.room_id === t2.room_id) {
+          // Room conflicts only apply when both items have a room
+          // (blocks/roomless items may overlap freely; matches the server-side check,
+          //  which only runs when a room is specified)
+          if (t1.room_id && t2.room_id && t1.room_id === t2.room_id) {
             const start1 = new Date(t1.start_time);
             const end1 = new Date(t1.end_time);
             const start2 = new Date(t2.start_time);
@@ -1381,15 +1561,170 @@
     function dragStart(event, submissionId) {
       draggedItem = submissions.find(s => s.id === submissionId);
       event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', 'submission:' + submissionId);
       event.target.classList.add('dragging');
+      beginCalendarDrag();
     }
 
     function dragEnd(event) {
       event.target.classList.remove('dragging');
+      draggedItem = null;
+      endCalendarDrag();
+    }
+
+    // Make calendar cells accept drops: cards stop intercepting pointer events while dragging
+    function beginCalendarDrag() {
+      document.querySelectorAll('.cal-grid').forEach(g => g.classList.add('drag-active'));
+    }
+
+    function endCalendarDrag() {
+      document.querySelectorAll('.cal-grid').forEach(g => g.classList.remove('drag-active'));
+      document.querySelectorAll('.cal-cell.drop-zone').forEach(c => c.classList.remove('drop-zone'));
+    }
+
+    function calDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      event.currentTarget.classList.add('drop-zone');
+    }
+
+    function calDragLeave(event) {
+      event.currentTarget.classList.remove('drop-zone');
+    }
+
+    // dayIdx = column index in week view, null in daily view (day is currentViewDate)
+    function calDrop(event, dayIdx, slotIdx) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('drop-zone');
+      const data = event.dataTransfer.getData('text/plain');
+      const startMinutes = (currentViewMode === 'daily' ? dayStartHour : weekStartHour) * 60 + slotIdx * 30;
+      const dayDate = dayIdx === null ? currentViewDate : weekDays[dayIdx];
+      if (!dayDate) return;
+
+      if (data.startsWith('submission:')) {
+        // Drop an unscheduled submission onto a slot: open the schedule modal prefilled
+        const submissionId = parseInt(data.slice('submission:'.length), 10);
+        showScheduleModal(submissionId, null, dayDate, startMinutes);
+      } else if (data.startsWith('talk:')) {
+        // Move an existing scheduled (unlocked) talk to a new slot/day
+        moveScheduledTalk(parseInt(data.slice('talk:'.length), 10), dayDate, startMinutes);
+      }
+    }
+
+    async function moveScheduledTalk(talkId, dayDate, startMinutes) {
+      const talk = scheduledTalks.find(t => t.id === talkId);
+      if (!talk || talk.is_locked) return;
+
+      const duration = new Date(talk.end_time).getTime() - new Date(talk.start_time).getTime();
+      const newStart = new Date(dayDate);
+      newStart.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+      const newEnd = new Date(newStart.getTime() + duration);
+
+      try {
+        const response = await fetch(`/api/scheduling/schedule/${talkId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start_time: formatLocalDateTime(newStart),
+            end_time: formatLocalDateTime(newEnd),
+            program_id: PROGRAM_ID,
+            workshop_id: WORKSHOP_ID || undefined
+          }),
+          credentials: 'same-origin'
+        });
+        if (response.ok) {
+          await loadData();
+        } else {
+          const errData = await response.json();
+          alert(errData.error || 'Failed to move item');
+          await loadData();
+        }
+      } catch (error) {
+        console.error('Error moving scheduled talk:', error);
+        alert('Failed to move item');
+      }
+    }
+
+    // Local naive datetime string (YYYY-MM-DDTHH:mm) — matches datetime-local values,
+    // which is what the DB's timestamp-without-time-zone columns expect
+    function formatLocalDateTime(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // ── Standard block presets ──
+    async function insertPresetBlock(title, minutes, defaultTime) {
+      // Anchor on the Monday of the displayed week; if that is already past, anchor on today
+      const refBase = currentViewMode === 'week' && currentWeekStart ? new Date(currentWeekStart) : getMonday(getFirstScheduledDate() || new Date());
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const anchor = refBase < today ? today : refBase;
+
+      const [h, m] = defaultTime.split(':').map(Number);
+      const start = new Date(anchor);
+      start.setHours(h, m, 0, 0);
+      const end = new Date(start);
+      end.setMinutes(end.getMinutes() + minutes);
+
+      // Duplicate guard: an identical block (same title + same start) already exists
+      const clash = scheduledTalks.find(t =>
+        t.is_block && t.event_title === title &&
+        new Date(t.start_time).getTime() === start.getTime());
+      if (clash) {
+        showToast(`"${title}" is already in the schedule at that time — nothing added`);
+        return;
+      }
+
+      const body = {
+        event_title: title,
+        start_time: formatLocalDateTime(start),
+        end_time: formatLocalDateTime(end),
+        room_id: null,
+        is_locked: false,
+        program_id: PROGRAM_ID,
+        workshop_id: WORKSHOP_ID || undefined
+      };
+      if (PROGRAM_END) {
+        body.repeat = { pattern: 'weekly', until: PROGRAM_END };
+      }
+
+      try {
+        const response = await fetch('/api/scheduling/blocks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'same-origin'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const count = data.count || 1;
+          showToast(`"${title}" inserted (${count} week${count === 1 ? '' : 's'} until ${PROGRAM_END || 'the end'}) — drag it into place`);
+          await loadData();
+        } else {
+          const errData = await response.json();
+          alert(errData.error || 'Failed to insert block');
+        }
+      } catch (error) {
+        console.error('Error inserting preset block:', error);
+        alert('Failed to insert block');
+      }
+    }
+
+    function showToast(message) {
+      let toast = document.getElementById('preset-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'preset-toast';
+        toast.style.cssText = 'position: fixed; bottom: 1.5rem; right: 1.5rem; background: #003E7E; color: white; padding: 0.75rem 1.25rem; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 0.9rem; z-index: 2000; max-width: 380px;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      toast.style.display = 'block';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 5000);
     }
 
     // Modal functions
-    function showScheduleModal(submissionId, scheduledTalkId = null) {
+    function showScheduleModal(submissionId, scheduledTalkId = null, presetDay = null, presetStartMinutes = null) {
       const modal = document.getElementById('schedule-modal');
       const form = document.getElementById('schedule-form');
 
@@ -1402,8 +1737,8 @@
         document.getElementById('modal-title-edit').value = talk.event_title || talk.talk_title || '';
         document.getElementById('modal-abstract-edit').value = talk.event_abstract || talk.talk_abstract || '';
         document.getElementById('modal-room').value = talk.room_id || '';
-        document.getElementById('modal-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
-        document.getElementById('modal-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+        document.getElementById('modal-start').value = formatLocalDateTime(new Date(talk.start_time));
+        document.getElementById('modal-end').value = formatLocalDateTime(new Date(talk.end_time));
         if (document.getElementById('modal-publish')) document.getElementById('modal-publish').checked = talk.publish_to_website;
         document.getElementById('modal-notes').value = talk.notes || '';
       } else {
@@ -1421,12 +1756,19 @@
         }
 
         // Set default times using smart calendar
-        const nextTime = getNextAvailableTime();
+        let nextTime;
+        if (presetDay !== null && presetStartMinutes !== null) {
+          // Dropped onto a calendar slot: use that day and time
+          nextTime = new Date(presetDay);
+          nextTime.setHours(Math.floor(presetStartMinutes / 60), presetStartMinutes % 60, 0, 0);
+        } else {
+          nextTime = getNextAvailableTime();
+        }
         const end = new Date(nextTime);
         end.setMinutes(end.getMinutes() + 45);
 
-        document.getElementById('modal-start').value = nextTime.toISOString().slice(0, 16);
-        document.getElementById('modal-end').value = end.toISOString().slice(0, 16);
+        document.getElementById('modal-start').value = formatLocalDateTime(nextTime);
+        document.getElementById('modal-end').value = formatLocalDateTime(end);
       }
 
       modal.classList.add('active');
@@ -1454,8 +1796,9 @@
       document.getElementById('event-affiliation').value = talk.event_affiliation || '';
       document.getElementById('event-abstract').value = talk.event_abstract || '';
       document.getElementById('event-room').value = talk.room_id || '';
-      document.getElementById('event-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
-      document.getElementById('event-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+      document.getElementById('event-color').value = talk.color || '';
+      document.getElementById('event-start').value = formatLocalDateTime(new Date(talk.start_time));
+      document.getElementById('event-end').value = formatLocalDateTime(new Date(talk.end_time));
       if (document.getElementById('event-publish')) document.getElementById('event-publish').checked = talk.publish_to_website;
 
       document.getElementById('event-form').dataset.talkId = talkId;
@@ -1473,8 +1816,8 @@
       const end = new Date(nextTime);
       end.setMinutes(end.getMinutes() + 30);
 
-      document.getElementById('event-start').value = nextTime.toISOString().slice(0, 16);
-      document.getElementById('event-end').value = end.toISOString().slice(0, 16);
+      document.getElementById('event-start').value = formatLocalDateTime(nextTime);
+      document.getElementById('event-end').value = formatLocalDateTime(end);
 
       modal.classList.add('active');
     }
@@ -1544,6 +1887,7 @@
         room_id: document.getElementById('event-room').value,
         start_time: document.getElementById('event-start').value,
         end_time: document.getElementById('event-end').value,
+        color: document.getElementById('event-color').value || undefined,
         program_id: '<%= programId %>',
         workshop_id: WORKSHOP_ID || undefined
       };
@@ -1645,7 +1989,11 @@
           currentViewDate.setHours(0, 0, 0, 0);
         }
         if (currentViewMode === 'week' && !currentWeekStart) {
-          const ref = getFirstScheduledDate() || new Date();
+          let ref = getFirstScheduledDate() || new Date();
+          if (PROGRAM_BOUNDS) {
+            if (ref < PROGRAM_BOUNDS.minMonday) ref = PROGRAM_BOUNDS.minMonday;
+            if (ref > PROGRAM_BOUNDS.maxMonday) ref = PROGRAM_BOUNDS.maxMonday;
+          }
           currentWeekStart = getMonday(ref);
         }
         updateCalendarLabel();
@@ -1789,8 +2137,8 @@
       const end = new Date(nextTime);
       end.setMinutes(end.getMinutes() + 30);
 
-      document.getElementById('block-start').value = nextTime.toISOString().slice(0, 16);
-      document.getElementById('block-end').value = end.toISOString().slice(0, 16);
+      document.getElementById('block-start').value = formatLocalDateTime(nextTime);
+      document.getElementById('block-end').value = formatLocalDateTime(end);
 
       modal.classList.add('active');
     }
@@ -1802,8 +2150,9 @@
       document.getElementById('block-edit-id').value = talk.id;
       document.getElementById('block-title').value = talk.event_title || '';
       document.getElementById('block-room').value = talk.room_id || '';
-      document.getElementById('block-start').value = new Date(talk.start_time).toISOString().slice(0, 16);
-      document.getElementById('block-end').value = new Date(talk.end_time).toISOString().slice(0, 16);
+      document.getElementById('block-color').value = talk.color || '';
+      document.getElementById('block-start').value = formatLocalDateTime(new Date(talk.start_time));
+      document.getElementById('block-end').value = formatLocalDateTime(new Date(talk.end_time));
       if (document.getElementById('block-locked')) document.getElementById('block-locked').checked = talk.is_locked;
       document.getElementById('block-notes').value = talk.notes || '';
       document.getElementById('block-repeat').value = '';
@@ -1848,6 +2197,7 @@
       const isLocked = IS_ADMIN && document.getElementById('block-locked') ? document.getElementById('block-locked').checked : undefined;
       const notes = document.getElementById('block-notes').value;
       const repeatPattern = document.getElementById('block-repeat').value;
+      const color = document.getElementById('block-color').value || undefined;
 
       if (editId) {
         // Editing existing block
@@ -1860,7 +2210,7 @@
               const response = await fetch(`/api/scheduling/blocks/group/${repeatGroupId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(Object.assign({ event_title: title, room_id: roomId || null, notes, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }, isLocked !== undefined ? { is_locked: isLocked } : {})),
+                body: JSON.stringify(Object.assign({ event_title: title, room_id: roomId || null, notes, color, program_id: '<%= programId %>', workshop_id: WORKSHOP_ID || undefined }, isLocked !== undefined ? { is_locked: isLocked } : {})),
                 credentials: 'same-origin'
               });
               if (response.ok) {
@@ -1888,6 +2238,7 @@
               start_time: startTime,
               end_time: endTime,
               notes,
+              color,
               program_id: '<%= programId %>',
               workshop_id: WORKSHOP_ID || undefined
             }, isLocked !== undefined ? { is_locked: isLocked } : {})),
@@ -1915,6 +2266,7 @@
         start_time: startTime,
         end_time: endTime,
         notes,
+        color,
         program_id: '<%= programId %>',
         workshop_id: WORKSHOP_ID || undefined
       }, isLocked !== undefined ? { is_locked: isLocked } : {});

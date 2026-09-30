@@ -63,6 +63,14 @@ router.get(['/', '/dashboard'], isAuthenticated, (req, res) => {
 
 // --- Program-scoped routes ---
 
+// Format a DATE column value as YYYY-MM-DD in Swedish local time
+// (pg returns DATE as a JS Date at local midnight; toISOString would shift a day)
+function formatDateIso(d) {
+  if (!d) return null;
+  const date = new Date(d);
+  return date.toLocaleDateString('sv-SE'); // YYYY-MM-DD
+}
+
 // GET /admin/p/:programId/dashboard - Program dashboard
 router.get('/p/:programId/dashboard', isAuthenticated, requireProgramAccess, async (req, res) => {
   try {
@@ -72,12 +80,16 @@ router.get('/p/:programId/dashboard', isAuthenticated, requireProgramAccess, asy
 
     const talks = await db.getSubmissionsByProgram(programId);
     const talkObjects = talks.map(t => new Talk(t));
+    // JRF scope: only JRF submissions are visible
+    const visibleTalks = (req.session && req.session.jrfScope)
+      ? talkObjects.filter(t => t.submissionType === 'jrf')
+      : talkObjects;
     const workshops = await db.getWorkshopsByProgram(programId);
     res.render('admin-dashboard', {
       title: program.name + ' - Dashboard',
       role: getUserRole(req),
-      talks: talkObjects,
-      totalSubmissions: talkObjects.length,
+      talks: visibleTalks,
+      totalSubmissions: visibleTalks.length,
       program,
       programId,
       workshops
@@ -101,7 +113,10 @@ router.get('/p/:programId/scheduling', isAuthenticated, requireProgramAccess, as
       role: getUserRole(req),
       program,
       programId,
-      workshops
+      workshops,
+      jrfScope: Boolean(req.session && req.session.jrfScope),
+      programStart: formatDateIso(program.start_date),
+      programEnd: formatDateIso(program.end_date)
     });
   } catch (error) {
     console.error('Error loading scheduling:', error);
@@ -188,6 +203,15 @@ router.get('/p/:programId/view/:id', isAuthenticated, requireProgramAccess, asyn
         title: 'Not Found',
         message: 'Talk submission not found',
         statusCode: 404
+      });
+    }
+
+    // JRF scope: only JRF submissions are visible
+    if (req.session && req.session.jrfScope && talk.submissionType !== 'jrf') {
+      return res.status(403).render('error', {
+        title: 'Access Denied',
+        message: 'JRF access only covers JRF seminar items',
+        statusCode: 403
       });
     }
 
@@ -416,7 +440,10 @@ router.get('/p/:programId/ws/:workshopId/scheduling', isAuthenticated, requirePr
   res.render('admin-scheduling', {
     title: workshop.name + ' - Schedule',
     role: getUserRole(req),
-    program, programId, workshop, workshopId, workshops
+    program, programId, workshop, workshopId, workshops,
+    jrfScope: Boolean(req.session && req.session.jrfScope),
+    programStart: formatDateIso(program.start_date),
+    programEnd: formatDateIso(program.end_date)
   });
 });
 
@@ -920,9 +947,10 @@ router.get('/magic-links', isAdmin, async (req, res) => {
 // POST /admin/magic-links - Create a new magic link
 router.post('/magic-links', isAdmin, async (req, res) => {
   try {
-    const { label, expires_at, program_id, workshop_id } = req.body;
+    const { label, expires_at, program_id, workshop_id, scope } = req.body;
+    const validScope = scope === 'jrf' ? 'jrf' : 'organizer';
     const token = crypto.randomBytes(32).toString('hex');
-    const link = await db.createMagicLink(token, label, expires_at || null, program_id || null, workshop_id || null);
+    const link = await db.createMagicLink(token, label, expires_at || null, program_id || null, workshop_id || null, validScope);
     res.status(201).json(link);
   } catch (error) {
     console.error('Error creating magic link:', error);

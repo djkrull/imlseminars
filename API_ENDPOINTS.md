@@ -315,6 +315,7 @@
 **Authentication:** All routes require authenticated session (admin or external). Lock toggle requires admin.
 **Content-Type:** `application/json`
 **Role restrictions on PATCH:** External users cannot change `is_locked`, `publish_to_website`, or `status` fields (returns 403).
+**JRF scope:** Sessions created from magic links with `scope: 'jrf'` only see and may only mutate JRF seminar items — JRF submissions, scheduled rows linked to them, and `jrf_scope`-tagged blocks/events. Any other mutation returns `403` with `"JRF access only covers JRF seminar items"`.
 
 ### Rooms
 
@@ -338,7 +339,7 @@
 
 #### `GET /api/scheduling/submissions`
 **Description:** Get all talk submissions (both scheduled and unscheduled)
-**Authentication:** Required
+**Authentication:** Required (JRF-scoped sessions receive only `submissionType: 'jrf'` submissions)
 **Query Parameters:**
 - `program_id` (optional) - Filter submissions by program ID
 **Response:**
@@ -370,7 +371,7 @@
 
 #### `GET /api/scheduling/scheduled`
 **Description:** Get all scheduled talks and events
-**Authentication:** Required
+**Authentication:** Required (JRF-scoped sessions receive only rows linked to jrf submissions or tagged `jrf_scope: true`)
 **Query Parameters:**
 - `program_id` (optional) - Filter scheduled talks by program ID
 **Response:**
@@ -394,7 +395,8 @@
     "event_title": "string",
     "event_speaker": "string",
     "event_affiliation": "string",
-    "event_abstract": "string"
+    "event_abstract": "string",
+    "color": "string (hex color or null)"
   }
 ]
 ```
@@ -411,6 +413,7 @@
   "end_time": "datetime (required)",
   "publish_to_website": boolean,
   "notes": "string",
+  "color": "#D4AF37 (optional hex color for calendar display)",
   "program_id": "number (optional)",
   "event_title": "string (for custom events)",
   "event_speaker": "string (for custom events)",
@@ -418,10 +421,11 @@
   "event_abstract": "string (for custom events)"
 }
 ```
-**Response:** Created scheduled talk object
+**Response:** Created scheduled talk object (rows created under a JRF-scoped session are tagged `jrf_scope: true`)
 **Status Codes:**
 - `201` - Created successfully
 - `400` - Missing required fields
+- `403` - JRF-scoped session with a non-JRF submission
 - `409` - Scheduling conflict detected
 
 #### `PATCH /api/scheduling/schedule/:id`
@@ -438,6 +442,8 @@
   "status": "string",
   "publish_to_website": boolean,
   "notes": "string",
+  "is_locked": true,
+  "color": "#D4AF37 (optional hex color)",
   "event_title": "string",
   "event_speaker": "string",
   "event_affiliation": "string",
@@ -447,7 +453,7 @@
 **Response:** Updated scheduled talk object
 **Status Codes:**
 - `200` - Updated successfully
-- `403` - Item is locked (only `is_locked`, `publish_to_website`, `status` changes allowed on locked items)
+- `403` - Item is locked (only `is_locked`, `publish_to_website`, `status` changes allowed on locked items), or JRF-scoped session mutating a non-JRF item
 - `404` - Scheduled talk not found
 - `409` - Scheduling conflict detected
 - `500` - Update failed
@@ -482,7 +488,7 @@
 ```
 **Status Codes:**
 - `200` - Deleted successfully
-- `403` - Item is locked and cannot be deleted
+- `403` - Item is locked and cannot be deleted, or JRF-scoped session deleting a non-JRF item
 - `404` - Scheduled talk not found
 
 ### Scheduling Blocks
@@ -499,6 +505,7 @@
   "end_time": "datetime (required)",
   "is_locked": true,
   "notes": "string",
+  "color": "#D4AF37 (optional hex color for calendar display)",
   "program_id": "number (optional)",
   "repeat": {
     "pattern": "daily|weekdays|weekly|custom",
@@ -508,10 +515,13 @@
 }
 ```
 **Notes:**
-- `room_id` is optional for blocks
+- `room_id` is optional for blocks (no conflict check when omitted)
 - `repeat` is optional; without it creates a single block
 - `repeat.days` only used with `pattern: "custom"` (0=Sun, 1=Mon, ..., 6=Sat)
 - Checks conflicts for all instances before creating (all-or-nothing)
+- **Duplicate guard:** an identical block (same title + same times) is rejected with `409`; for repeating blocks, dates that already have an identical block are skipped, and if all matching dates already exist the request is rejected with `409`
+- Blocks created under a JRF-scoped session are tagged `jrf_scope: true`
+- The scheduling UI's standard block presets (Coffee break 15/30 min, Lunch) call this endpoint with `is_locked: false` and `repeat.pattern: 'weekly'` until the program's end date
 **Response (single):** Created block object
 **Response (repeating):**
 ```json
@@ -524,7 +534,7 @@
 **Status Codes:**
 - `201` - Created successfully
 - `400` - Missing required fields or no matching dates
-- `409` - Scheduling conflict detected
+- `409` - Scheduling conflict detected, or an identical block already exists
 
 #### `PATCH /api/scheduling/blocks/group/:groupId`
 **Description:** Update all instances in a repeat group
@@ -539,7 +549,8 @@
   "is_locked": true,
   "notes": "string",
   "publish_to_website": true,
-  "status": "string"
+  "status": "string",
+  "color": "#D4AF37 (optional hex color)"
 }
 ```
 **Response:**
@@ -631,7 +642,7 @@
 ### External Access
 
 #### `GET /schedule/:token`
-**Description:** Magic link login for external users — validates token and redirects to program-specific scheduling page
+**Description:** Magic link login for external users — validates token and redirects to program-specific scheduling page. Links with `scope: 'jrf'` set a JRF-scoped session (only JRF items visible/mutable); other links grant full program access.
 **Authentication:** None (token-based)
 **URL Parameters:**
 - `token` - 64-character hex token
@@ -671,7 +682,8 @@
   "label": "string (optional)",
   "expires_at": "datetime (optional)",
   "program_id": "number (optional)",
-  "workshop_id": "number (optional)"
+  "workshop_id": "number (optional)",
+  "scope": "'organizer' (default, full program) | 'jrf' (Junior Fellows Seminar items only)"
 }
 ```
 **Response:** Created magic link object
