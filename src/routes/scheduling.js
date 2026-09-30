@@ -5,6 +5,11 @@ const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const db = require('../config/database');
 const Talk = require('../models/Talk');
 
+// JRF-scoped sessions (magic links with scope='jrf') only manage the JRF part of the schedule
+function isJrfScoped(req) {
+  return Boolean(req.session && req.session.isExternal && req.session.jrfScope);
+}
+
 // GET /api/scheduling/rooms - Get all rooms
 router.get('/rooms', isAuthenticated, async (req, res) => {
   try {
@@ -31,6 +36,9 @@ router.get('/submissions', isAuthenticated, async (req, res) => {
     } else {
       submissions = await Talk.findAll();
     }
+    if (isJrfScoped(req)) {
+      submissions = submissions.filter(t => t.submissionType === 'jrf');
+    }
     res.json(submissions);
   } catch (error) {
     console.error('Error fetching submissions:', error);
@@ -43,7 +51,7 @@ router.get('/scheduled', isAuthenticated, async (req, res) => {
   try {
     const programId = req.query.program_id;
     const workshopId = req.query.workshop_id;
-    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined);
+    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined, isJrfScoped(req));
     res.json(scheduled);
   } catch (error) {
     console.error('Error fetching scheduled talks:', error);
@@ -66,7 +74,10 @@ router.get('/unscheduled', isAuthenticated, async (req, res) => {
     } else {
       allSubmissions = await Talk.findAll();
     }
-    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined);
+    if (isJrfScoped(req)) {
+      allSubmissions = allSubmissions.filter(t => t.submissionType === 'jrf');
+    }
+    const scheduled = await db.getAllScheduledTalks(programId || undefined, workshopId || undefined, isJrfScoped(req));
     const scheduledIds = scheduled
       .filter(s => s.submission_id)
       .map(s => s.submission_id);
@@ -86,7 +97,7 @@ router.get('/unscheduled', isAuthenticated, async (req, res) => {
 router.post('/schedule', isAuthenticated, async (req, res) => {
   try {
     const { submission_id, room_id, event_title, event_speaker, event_affiliation,
-            event_abstract, start_time, end_time, publish_to_website, notes, program_id, workshop_id } = req.body;
+            event_abstract, start_time, end_time, publish_to_website, notes, program_id, workshop_id, color } = req.body;
 
     // Validate required fields
     if (!room_id || !start_time || !end_time) {
@@ -102,6 +113,14 @@ router.post('/schedule', isAuthenticated, async (req, res) => {
       });
     }
 
+    // JRF scope: the linked submission must be a JRF submission
+    if (isJrfScoped(req) && submission_id) {
+      const submission = await Talk.findById(submission_id);
+      if (!submission || submission.submissionType !== 'jrf') {
+        return res.status(403).json({ error: 'JRF access only covers JRF seminar items' });
+      }
+    }
+
     const scheduled = await db.createScheduledTalk({
       submission_id,
       room_id,
@@ -114,7 +133,9 @@ router.post('/schedule', isAuthenticated, async (req, res) => {
       publish_to_website: publish_to_website || false,
       notes,
       program_id: program_id || null,
-      workshop_id: workshop_id || null
+      workshop_id: workshop_id || null,
+      jrf_scope: isJrfScoped(req),
+      color
     });
 
     res.status(201).json(scheduled);
@@ -129,7 +150,7 @@ router.patch('/schedule/:id', isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
     const { room_id, event_title, event_speaker, event_affiliation, event_abstract,
-            start_time, end_time, status, publish_to_website, notes, is_locked } = req.body;
+            start_time, end_time, status, publish_to_website, notes, is_locked, color } = req.body;
 
     // Admin-only fields: is_locked, status
     const isAdminUser = req.session && req.session.isAdmin;
@@ -143,6 +164,11 @@ router.patch('/schedule/:id', isAuthenticated, async (req, res) => {
     const currentTalk = await db.getScheduledTalkById(id);
     if (!currentTalk) {
       return res.status(404).json({ error: 'Scheduled talk not found' });
+    }
+
+    // JRF scope: may only mutate JRF-linked rows
+    if (isJrfScoped(req) && !(currentTalk.jrf_scope || currentTalk.submission_type === 'jrf')) {
+      return res.status(403).json({ error: 'JRF access only covers JRF seminar items' });
     }
 
     if (currentTalk.is_locked) {
@@ -190,7 +216,8 @@ router.patch('/schedule/:id', isAuthenticated, async (req, res) => {
       status,
       publish_to_website,
       notes,
-      is_locked
+      is_locked,
+      color
     });
 
     res.json(updated);
@@ -227,11 +254,17 @@ router.delete('/schedule/:id', isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Lock enforcement
     const talk = await db.getScheduledTalkById(id);
     if (!talk) {
       return res.status(404).json({ error: 'Scheduled talk not found' });
     }
+
+    // JRF scope: may only delete JRF-linked rows
+    if (isJrfScoped(req) && !(talk.jrf_scope || talk.submission_type === 'jrf')) {
+      return res.status(403).json({ error: 'JRF access only covers JRF seminar items' });
+    }
+
+    // Lock enforcement
     if (talk.is_locked) {
       return res.status(403).json({ error: 'This item is locked and cannot be deleted. Unlock it first.' });
     }
@@ -247,19 +280,27 @@ router.delete('/schedule/:id', isAuthenticated, async (req, res) => {
 // POST /api/scheduling/blocks - Create a scheduling block (single or repeating)
 router.post('/blocks', isAuthenticated, async (req, res) => {
   try {
-    const { event_title, room_id, start_time, end_time, is_locked, notes, repeat, program_id, workshop_id } = req.body;
+    const { event_title, room_id, start_time, end_time, is_locked, notes, repeat, program_id, workshop_id, color } = req.body;
 
     if (!event_title || !start_time || !end_time) {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
     }
 
-    const startDate = new Date(start_time);
-    const endDate = new Date(end_time);
+    // Local YYYY-MM-DD for a local-midnight Date (toISOString would shift a day in UTC+ timezones)
+    const localDateStr = (d) => {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
     const startTimeOfDay = start_time.includes('T') ? start_time.split('T')[1] : '00:00';
     const endTimeOfDay = end_time.includes('T') ? end_time.split('T')[1] : '00:00';
 
     if (!repeat) {
       // Single block
+      // Duplicate guard: an identical block (same title + exact times) already exists
+      if (await db.blockExists(event_title, start_time, end_time, program_id || null, workshop_id || null)) {
+        return res.status(409).json({ error: 'An identical block already exists in the schedule' });
+      }
+
       if (room_id) {
         const conflicts = await db.checkSchedulingConflicts(room_id, start_time, end_time, null, program_id || null, workshop_id || null);
         if (conflicts.length > 0) {
@@ -276,13 +317,16 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
         is_block: true,
         notes,
         program_id: program_id || null,
-        workshop_id: workshop_id || null
+        workshop_id: workshop_id || null,
+        jrf_scope: isJrfScoped(req),
+        color
       });
 
       return res.status(201).json(block);
     }
 
     // Repeating block
+    const startDate = new Date(start_time);
     const { pattern, days, until } = repeat;
     if (!until) {
       return res.status(400).json({ error: 'Repeat until date is required' });
@@ -326,10 +370,33 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
       return res.status(400).json({ error: 'No matching dates found for the repeat pattern' });
     }
 
+    // Duplicate guard: drop dates that already have an identical block (same title + time of day)
+    let existingDates = [];
+    try {
+      existingDates = await db.getExistingBlockDates(
+        event_title,
+        startTimeOfDay,
+        endTimeOfDay,
+        dates.map(localDateStr),
+        program_id || null,
+        workshop_id || null
+      );
+    } catch (dupError) {
+      console.error('Error checking duplicate blocks:', dupError);
+    }
+    if (existingDates.length > 0) {
+      const filtered = dates.filter(d => !existingDates.includes(localDateStr(d)));
+      if (filtered.length === 0) {
+        return res.status(409).json({ error: 'An identical block already exists for all matching dates' });
+      }
+      dates.length = 0;
+      dates.push(...filtered);
+    }
+
     // Check conflicts for all dates if room specified
     if (room_id) {
       for (const date of dates) {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = localDateStr(date);
         const slotStart = `${dateStr}T${startTimeOfDay}`;
         const slotEnd = `${dateStr}T${endTimeOfDay}`;
         const conflicts = await db.checkSchedulingConflicts(room_id, slotStart, slotEnd, null, program_id || null, workshop_id || null);
@@ -344,7 +411,7 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
 
     // Create all instances
     const items = dates.map(date => {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = localDateStr(date);
       return {
         room_id: room_id || null,
         event_title,
@@ -355,7 +422,9 @@ router.post('/blocks', isAuthenticated, async (req, res) => {
         repeat_group_id: repeatGroupId,
         notes,
         program_id: program_id || null,
-        workshop_id: workshop_id || null
+        workshop_id: workshop_id || null,
+        jrf_scope: isJrfScoped(req),
+        color
       };
     });
 
@@ -372,6 +441,11 @@ router.patch('/blocks/group/:groupId', isAuthenticated, async (req, res) => {
   try {
     const { groupId } = req.params;
     const data = req.body;
+
+    // JRF scope: may only mutate JRF-scoped groups
+    if (isJrfScoped(req) && !(await db.isRepeatGroupJrfScope(groupId))) {
+      return res.status(403).json({ error: 'JRF access only covers JRF seminar items' });
+    }
 
     const updated = await db.updateByRepeatGroup(groupId, data);
     if (updated.length === 0) {
@@ -390,6 +464,11 @@ router.delete('/blocks/group/:groupId', isAuthenticated, async (req, res) => {
   try {
     const { groupId } = req.params;
     const force = req.query.force === 'true';
+
+    // JRF scope: may only delete JRF-scoped groups
+    if (isJrfScoped(req) && !(await db.isRepeatGroupJrfScope(groupId))) {
+      return res.status(403).json({ error: 'JRF access only covers JRF seminar items' });
+    }
 
     if (!force) {
       const locked = await db.isRepeatGroupLocked(groupId);

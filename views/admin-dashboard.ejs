@@ -165,7 +165,7 @@
         <button class="btn btn-primary" onclick="showCreateLinkModal()">Create New Link</button>
       </div>
       <p style="color: #666; margin-bottom: 1rem;">
-        Share these links with external users to give them access to the scheduling page. They can create and edit events but cannot publish, lock, or export.
+        Share these links with external users to give them access to the scheduling page. They can create and edit events but cannot publish, lock, or export. JRF links only give access to the Junior Fellows Seminar part of the schedule.
       </p>
       <div class="table-container">
         <table class="table" id="magic-links-table">
@@ -173,6 +173,7 @@
             <tr>
               <th>Label</th>
               <th>Link</th>
+              <th>Type</th>
               <th>Status</th>
               <th>Created</th>
               <th>Expires</th>
@@ -180,7 +181,7 @@
             </tr>
           </thead>
           <tbody id="magic-links-body">
-            <tr><td colspan="6" style="text-align: center; color: #666;">Loading...</td></tr>
+            <tr><td colspan="7" style="text-align: center; color: #666;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -198,6 +199,13 @@
           <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #003E7E;">Expires (optional)</label>
             <input type="datetime-local" id="link-expires" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #003E7E;">Access</label>
+            <select id="link-scope" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+              <option value="organizer">Organizer — full program schedule + submissions</option>
+              <option value="jrf">JRF — Junior Fellows Seminar items only</option>
+            </select>
           </div>
           <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
             <button type="submit" class="btn btn-primary">Create Link</button>
@@ -223,7 +231,7 @@
         const tbody = document.getElementById('magic-links-body');
 
         if (links.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No links created yet</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">No links created yet</td></tr>';
           return;
         }
 
@@ -232,12 +240,17 @@
           const isActive = link.is_active && (!link.expires_at || new Date(link.expires_at) > new Date());
           const statusText = !link.is_active ? 'Deactivated' : (link.expires_at && new Date(link.expires_at) <= new Date() ? 'Expired' : 'Active');
           const statusColor = statusText === 'Active' ? '#228B22' : '#DC143C';
+          const isJrf = link.scope === 'jrf';
+          const typeBadge = isJrf
+            ? '<span style="background: #D4AF37; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.8rem; font-weight: bold;">JRF</span>'
+            : '<span style="background: #003E7E; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.8rem;">Organizer</span>';
 
           return `<tr>
             <td>${link.label || '<em>No label</em>'}</td>
             <td>
               <button onclick="copyLink(this, '${url}')" style="padding: 0.3rem 0.75rem; border: 1px solid #003E7E; border-radius: 4px; cursor: pointer; background: #003E7E; color: white; font-size: 0.85rem;">Copy Link</button>
             </td>
+            <td>${typeBadge}</td>
             <td><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
             <td>${new Date(link.created_at).toLocaleDateString()}</td>
             <td>${link.expires_at ? new Date(link.expires_at).toLocaleDateString() : 'Never'}</td>
@@ -316,12 +329,13 @@
       e.preventDefault();
       const label = document.getElementById('link-label').value;
       const expiresAt = document.getElementById('link-expires').value;
+      const scope = document.getElementById('link-scope').value;
 
       try {
         const response = await fetch('/admin/magic-links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ label, expires_at: expiresAt || null, program_id: '<%= programId %>' }),
+          body: JSON.stringify({ label, expires_at: expiresAt || null, program_id: '<%= programId %>', scope }),
           credentials: 'same-origin'
         });
 

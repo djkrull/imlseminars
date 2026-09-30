@@ -139,6 +139,8 @@ async function magicLinkLogin(req, res) {
     req.session.magicLinkId = link.id;
     req.session.programId = link.program_id;
     req.session.workshopId = link.workshop_id || null;
+    // JRF-scoped links only grant access to the JRF part of the schedule
+    req.session.jrfScope = link.scope === 'jrf';
 
     if (link.workshop_id && link.program_id) {
       res.redirect(`/admin/p/${link.program_id}/ws/${link.workshop_id}/scheduling`);

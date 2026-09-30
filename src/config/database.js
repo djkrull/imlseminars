@@ -129,6 +129,12 @@ async function createTables() {
     -- Add submission_type column (talk = regular, jrf = Junior Fellows Seminar)
     ALTER TABLE talk_submissions ADD COLUMN IF NOT EXISTS submission_type VARCHAR(20) DEFAULT 'talk';
 
+    -- JRF scoping: magic links can be scoped to 'organizer' (default) or 'jrf';
+    -- scheduled_talks rows created under a jrf-scoped session are tagged jrf_scope
+    ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS scope VARCHAR(20) DEFAULT 'organizer';
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS jrf_scope BOOLEAN DEFAULT false;
+    ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS color VARCHAR(20);
+
     -- Insert default rooms if they don't exist
     INSERT INTO rooms (name, building, capacity) VALUES
       ('Kuskvillan', 'Main Campus', 50),
@@ -243,7 +249,7 @@ async function getAllRooms() {
 }
 
 // Get all scheduled talks with submission and room details
-async function getAllScheduledTalks(programId, workshopId) {
+async function getAllScheduledTalks(programId, workshopId, jrfOnly) {
   if (useInMemoryStorage) {
     return [];
   } else {
@@ -267,6 +273,10 @@ async function getAllScheduledTalks(programId, workshopId) {
       params.push(workshopId);
       conditions.push(`st.workshop_id = $${params.length}`);
     }
+    if (jrfOnly) {
+      // JRF-scope: only rows linked to a jrf submission, or jrf-tagged blocks/events
+      conditions.push("(ts.submission_type = 'jrf' OR st.jrf_scope = true)");
+    }
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
@@ -284,8 +294,8 @@ async function createScheduledTalk(data) {
     const query = `
       INSERT INTO scheduled_talks
       (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id, jrf_scope, color)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *;
     `;
     const values = [
@@ -304,7 +314,9 @@ async function createScheduledTalk(data) {
       data.is_block || false,
       data.repeat_group_id || null,
       data.program_id || null,
-      data.workshop_id || null
+      data.workshop_id || null,
+      data.jrf_scope || false,
+      data.color || null
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -331,7 +343,8 @@ async function updateScheduledTalk(id, data) {
       ['status', data.status],
       ['publish_to_website', data.publish_to_website],
       ['notes', data.notes],
-      ['is_locked', data.is_locked]
+      ['is_locked', data.is_locked],
+      ['color', data.color]
     ];
 
     for (const [col, val] of fields) {
@@ -401,15 +414,33 @@ async function checkSchedulingConflicts(roomId, startTime, endTime, excludeId = 
   }
 }
 
-// Get a single scheduled talk by ID
+// Get a single scheduled talk by ID (joined with submission_type for scope checks)
 async function getScheduledTalkById(id) {
   if (useInMemoryStorage) {
     return null;
   } else {
-    const query = 'SELECT * FROM scheduled_talks WHERE id = $1';
+    const query = `
+      SELECT st.*, ts.submission_type
+      FROM scheduled_talks st
+      LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
+      WHERE st.id = $1
+    `;
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
+}
+
+// Check whether a repeat group belongs to the JRF scope
+async function isRepeatGroupJrfScope(groupId) {
+  if (useInMemoryStorage) return false;
+  const query = `
+    SELECT COUNT(*) as cnt FROM scheduled_talks st
+    LEFT JOIN talk_submissions ts ON st.submission_id = ts.id
+    WHERE st.repeat_group_id = $1
+    AND NOT (st.jrf_scope = true OR ts.submission_type = 'jrf')
+  `;
+  const result = await pool.query(query, [groupId]);
+  return parseInt(result.rows[0].cnt) === 0;
 }
 
 // Create multiple scheduled talks in a transaction (for repeating blocks)
@@ -425,8 +456,8 @@ async function createScheduledTalksInBatch(items) {
       const query = `
         INSERT INTO scheduled_talks
         (submission_id, room_id, event_title, event_speaker, event_affiliation, event_abstract,
-         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         start_time, end_time, status, publish_to_website, notes, is_locked, is_block, repeat_group_id, program_id, workshop_id, jrf_scope, color)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *;
       `;
       const values = [
@@ -445,7 +476,9 @@ async function createScheduledTalksInBatch(items) {
         true,
         data.repeat_group_id,
         data.program_id || null,
-        data.workshop_id || null
+        data.workshop_id || null,
+        data.jrf_scope || false,
+        data.color || null
       ];
       const result = await client.query(query, values);
       results.push(result.rows[0]);
@@ -486,7 +519,8 @@ async function updateByRepeatGroup(groupId, data) {
     ['is_locked', data.is_locked],
     ['notes', data.notes],
     ['publish_to_website', data.publish_to_website],
-    ['status', data.status]
+    ['status', data.status],
+    ['color', data.color]
   ];
 
   for (const [col, val] of fields) {
@@ -520,17 +554,58 @@ async function isRepeatGroupLocked(groupId) {
   return parseInt(result.rows[0].cnt) > 0;
 }
 
+// Duplicate guard: does an identical block already exist (same title + exact start/end)?
+async function blockExists(eventTitle, startTime, endTime, programId, workshopId) {
+  if (useInMemoryStorage) return false;
+  const conditions = [
+    'is_block = true',
+    'event_title = $1',
+    'start_time = $2::timestamp',
+    'end_time = $3::timestamp'
+  ];
+  const params = [eventTitle, startTime, endTime];
+  if (programId) { params.push(programId); conditions.push(`program_id = $${params.length}`); }
+  else { conditions.push('program_id IS NULL'); }
+  if (workshopId) { params.push(workshopId); conditions.push(`workshop_id = $${params.length}`); }
+  else { conditions.push('workshop_id IS NULL'); }
+  const result = await pool.query(
+    `SELECT 1 FROM scheduled_talks WHERE ${conditions.join(' AND ')} LIMIT 1`, params);
+  return result.rows.length > 0;
+}
+
+// Duplicate guard for repeating blocks: which of the given dates already have
+// an identical block (same title + same time of day)?
+async function getExistingBlockDates(eventTitle, startTimeOfDay, endTimeOfDay, dates, programId, workshopId) {
+  if (useInMemoryStorage) return [];
+  const conditions = [
+    'is_block = true',
+    'event_title = $1',
+    'start_time::time = $2::time',
+    'end_time::time = $3::time',
+    'start_time::date = ANY($4::date[])'
+  ];
+  const params = [eventTitle, startTimeOfDay, endTimeOfDay, dates];
+  if (programId) { params.push(programId); conditions.push(`program_id = $${params.length}`); }
+  else { conditions.push('program_id IS NULL'); }
+  if (workshopId) { params.push(workshopId); conditions.push(`workshop_id = $${params.length}`); }
+  else { conditions.push('workshop_id IS NULL'); }
+  const result = await pool.query(
+    `SELECT DISTINCT start_time::date AS d FROM scheduled_talks WHERE ${conditions.join(' AND ')}`, params);
+  // DATE columns come back as local-midnight Date objects — format locally (never toISOString)
+  return result.rows.map(r => r.d.toLocaleDateString('sv-SE'));
+}
+
 // Create a magic link
-async function createMagicLink(token, label, expiresAt, programId, workshopId) {
+async function createMagicLink(token, label, expiresAt, programId, workshopId, scope) {
   if (useInMemoryStorage) {
-    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt, program_id: programId || null, workshop_id: workshopId || null };
+    return { id: 1, token, label, is_active: true, created_at: new Date(), expires_at: expiresAt, program_id: programId || null, workshop_id: workshopId || null, scope: scope || 'organizer' };
   }
   const query = `
-    INSERT INTO magic_links (token, label, expires_at, program_id, workshop_id)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO magic_links (token, label, expires_at, program_id, workshop_id, scope)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *;
   `;
-  const result = await pool.query(query, [token, label || null, expiresAt || null, programId || null, workshopId || null]);
+  const result = await pool.query(query, [token, label || null, expiresAt || null, programId || null, workshopId || null, scope || 'organizer']);
   return result.rows[0];
 }
 
@@ -800,6 +875,9 @@ module.exports = {
   deleteByRepeatGroup,
   updateByRepeatGroup,
   isRepeatGroupLocked,
+  isRepeatGroupJrfScope,
+  blockExists,
+  getExistingBlockDates,
   checkSchedulingConflicts,
   createMagicLink,
   validateMagicLink,
