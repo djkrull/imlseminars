@@ -153,7 +153,7 @@
 **Response:** Renders program listing view
 
 #### `POST /admin/programs/sync`
-**Description:** Trigger program and workshop sync from IML Booking App
+**Description:** Trigger program and workshop sync from IML Booking App. Local programs that no longer exist in the source are automatically marked `ARCHIVED` (skipped if the source response appears truncated).
 **Authentication:** Admin only
 **Response:**
 ```json
@@ -161,7 +161,8 @@
   "success": true,
   "programs": 5,
   "workshops": 12,
-  "message": "5 programs and 12 workshops synced"
+  "archived": ["HP2026"],
+  "message": "5 programs and 12 workshops synced, 1 stale archived (HP2026)"
 }
 ```
 **Status Codes:**

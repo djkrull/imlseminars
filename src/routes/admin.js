@@ -44,9 +44,10 @@ router.get('/programs', isAdmin, async (req, res) => {
 // POST /admin/programs/sync - Sync programs and workshops from IML Booking App
 router.post('/programs/sync', isAdmin, async (req, res) => {
   try {
-    const programCount = await syncPrograms();
+    const { synced, archived } = await syncPrograms();
     const workshopCount = await syncWorkshops();
-    res.json({ success: true, programs: programCount, workshops: workshopCount, message: `${programCount} programs and ${workshopCount} workshops synced` });
+    const archivedNote = archived.length > 0 ? `, ${archived.length} stale archived (${archived.join(', ')})` : '';
+    res.json({ success: true, programs: synced, workshops: workshopCount, archived, message: `${synced} programs and ${workshopCount} workshops synced${archivedNote}` });
   } catch (error) {
     console.error('Sync error:', error);
     res.status(500).json({ error: 'Sync failed' });

@@ -2,12 +2,14 @@ const db = require('../config/database');
 
 const BOOKING_APP_URL = process.env.BOOKING_APP_URL || 'https://imlbooking.up.railway.app';
 
+const PROGRAM_SYNC_LIMIT = 200;
+
 async function syncPrograms() {
   try {
-    const response = await fetch(`${BOOKING_APP_URL}/api/programs?limit=50`);
+    const response = await fetch(`${BOOKING_APP_URL}/api/programs?limit=${PROGRAM_SYNC_LIMIT}`);
     if (!response.ok) {
       console.warn(`Program sync failed: ${response.status} ${response.statusText}`);
-      return 0;
+      return { synced: 0, archived: [] };
     }
     const programs = await response.json();
     // The booking app returns an array directly (or may have pagination wrapper)
@@ -15,15 +17,29 @@ async function syncPrograms() {
 
     if (programList.length === 0) {
       console.log('Program sync: No programs found');
-      return 0;
+      return { synced: 0, archived: [] };
     }
 
     await db.upsertPrograms(programList);
+
+    // Archive local programs that are gone from the source (e.g. renamed upstream).
+    // Skipped when the response looks truncated — archiving from a partial list
+    // would hide legitimate programs.
+    let archived = [];
+    if (programList.length < PROGRAM_SYNC_LIMIT) {
+      archived = await db.archiveProgramsNotIn(programList.map(p => p.programId || p.program_id));
+      if (archived.length > 0) {
+        console.log(`Program sync: archived ${archived.length} stale programs (${archived.join(', ')})`);
+      }
+    } else {
+      console.warn(`Program sync: received ${programList.length} programs (limit hit) — skipping stale-archive pass`);
+    }
+
     console.log(`Program sync: ${programList.length} programs synced`);
-    return programList.length;
+    return { synced: programList.length, archived };
   } catch (error) {
     console.warn('Program sync failed:', error.message);
-    return 0;
+    return { synced: 0, archived: [] };
   }
 }
 

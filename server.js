@@ -122,8 +122,9 @@ async function startServer() {
       `);
 
       // Non-blocking program + workshop sync on startup
-      syncPrograms().then(count => {
-        if (count > 0) console.log(`Startup sync: ${count} programs loaded`);
+      syncPrograms().then(result => {
+        if (result.synced > 0) console.log(`Startup sync: ${result.synced} programs loaded`);
+        if (result.archived.length > 0) console.log(`Startup sync: archived stale programs: ${result.archived.join(', ')}`);
         return syncWorkshops();
       }).then(count => {
         if (count > 0) console.log(`Startup sync: ${count} workshops loaded`);

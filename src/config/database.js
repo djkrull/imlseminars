@@ -627,6 +627,20 @@ async function upsertPrograms(programs) {
   }
 }
 
+// Mark local programs that no longer exist in the booking app as ARCHIVED.
+// The sync only upserts — without this, rows removed/renamed upstream stay frozen forever.
+async function archiveProgramsNotIn(programIds) {
+  if (useInMemoryStorage) return [];
+  if (!programIds || programIds.length === 0) return [];
+  const query = `
+    UPDATE programs SET status = 'ARCHIVED', synced_at = CURRENT_TIMESTAMP
+    WHERE program_id <> ALL($1) AND status <> 'ARCHIVED'
+    RETURNING program_id;
+  `;
+  const result = await pool.query(query, [programIds]);
+  return result.rows.map(r => r.program_id);
+}
+
 // Get all programs
 async function getAllPrograms() {
   if (useInMemoryStorage) return [];
@@ -793,6 +807,7 @@ module.exports = {
   deactivateMagicLink,
   closeDatabase,
   upsertPrograms,
+  archiveProgramsNotIn,
   getAllPrograms,
   getActivePrograms,
   getProgramById,
