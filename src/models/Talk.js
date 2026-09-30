@@ -12,6 +12,7 @@ class Talk {
     this.affiliation = data.affiliation;
     this.questions = data.questions;
     this.submittedAt = data.submitted_at || data.submittedAt || new Date();
+    this.submissionType = data.submission_type || data.submissionType || 'talk';
   }
 
   // Create a new talk submission
@@ -26,7 +27,8 @@ class Talk {
       affiliation: data.affiliation,
       questions: data.questions,
       programId: data.programId || data.program_id || null,
-      workshopId: data.workshopId || data.workshop_id || null
+      workshopId: data.workshopId || data.workshop_id || null,
+      submission_type: data.submissionType || data.submission_type || 'talk'
     };
 
     const result = await db.insertTalkSubmission(submissionData);
@@ -62,7 +64,8 @@ class Talk {
       talkAbstract: this.talkAbstract,
       affiliation: this.affiliation,
       questions: this.questions,
-      submittedAt: this.submittedAt
+      submittedAt: this.submittedAt,
+      submissionType: this.submissionType
     };
   }
 

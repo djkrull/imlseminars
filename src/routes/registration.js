@@ -230,6 +230,89 @@ router.get('/p/:programId/success', async (req, res) => {
   });
 });
 
+// JRF (Junior Fellows Seminar) registration form
+router.get('/p/:programId/jrf-register', async (req, res) => {
+  try {
+    const program = await db.getProgramById(req.params.programId);
+    if (!program) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Program not found' });
+    }
+    if (program.status !== 'ACTIVE' && program.status !== 'PLANNED') {
+      return res.status(400).render('error', { title: 'Registration Closed', message: 'Registration for this program is no longer available.' });
+    }
+    res.render('registration', {
+      title: `Junior Fellows Seminar - ${program.name}`,
+      errors: [],
+      formData: {},
+      program,
+      programId: req.params.programId,
+      submissionType: 'jrf'
+    });
+  } catch (error) {
+    console.error('Error loading JRF registration:', error);
+    res.status(500).render('error', { title: 'Error', message: 'Failed to load registration form' });
+  }
+});
+
+// JRF registration submission
+router.post('/p/:programId/jrf-register', talkValidationRules, async (req, res) => {
+  try {
+    const program = await db.getProgramById(req.params.programId);
+    if (!program) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Program not found' });
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.render('registration', {
+        title: `Junior Fellows Seminar - ${program.name}`,
+        errors: errors.array(),
+        formData: req.body,
+        program,
+        programId: req.params.programId,
+        submissionType: 'jrf'
+      });
+    }
+
+    const talkData = {
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      sendCopy: req.body.sendCopy === 'on' || req.body.sendCopy === true,
+      talkTitle: req.body.talkTitle,
+      talkAbstract: req.body.talkAbstract,
+      affiliation: req.body.affiliation,
+      questions: req.body.questions || null,
+      programId: req.params.programId,
+      submissionType: 'jrf'
+    };
+
+    const talk = await Talk.create(talkData);
+
+    console.log('New JRF submission received:', {
+      id: talk.id,
+      name: talk.getFullName(),
+      email: talk.email,
+      title: talk.talkTitle,
+      programId: req.params.programId
+    });
+
+    res.redirect(`/p/${req.params.programId}/success?id=${talk.id}`);
+  } catch (error) {
+    console.error('Error submitting JRF talk:', error);
+    let program = null;
+    try { program = await db.getProgramById(req.params.programId); } catch (e) { /* ignore */ }
+    res.render('registration', {
+      title: program ? `Junior Fellows Seminar - ${program.name}` : 'Junior Fellows Seminar',
+      errors: [{ msg: 'An error occurred while submitting. Please try again.' }],
+      formData: req.body,
+      program,
+      programId: req.params.programId,
+      submissionType: 'jrf'
+    });
+  }
+});
+
 // Workshop-scoped registration form
 router.get('/p/:programId/ws/:workshopId/register', async (req, res) => {
   try {

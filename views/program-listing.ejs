@@ -108,6 +108,9 @@
               <div class="program-list-description"><%= program.description %></div>
             <% } %>
             <a href="/p/<%= program.program_id %>/register" class="btn btn-primary">Register for Talk</a>
+            <% if (/\b(Fall|Spring)\b/i.test(program.name)) { %>
+              <a href="/p/<%= program.program_id %>/jrf-register" class="btn btn-secondary" style="margin-left: 0.5rem;">JRF Registration</a>
+            <% } %>
             <%
               const programWorkshops = (typeof workshopsByProgram !== 'undefined' && workshopsByProgram)
                 ? (workshopsByProgram[program.program_id] || [])

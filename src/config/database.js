@@ -126,6 +126,9 @@ async function createTables() {
     ALTER TABLE scheduled_talks ADD COLUMN IF NOT EXISTS workshop_id VARCHAR(50) REFERENCES workshops(workshop_id);
     ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS workshop_id VARCHAR(50) REFERENCES workshops(workshop_id);
 
+    -- Add submission_type column (talk = regular, jrf = Junior Fellows Seminar)
+    ALTER TABLE talk_submissions ADD COLUMN IF NOT EXISTS submission_type VARCHAR(20) DEFAULT 'talk';
+
     -- Insert default rooms if they don't exist
     INSERT INTO rooms (name, building, capacity) VALUES
       ('Kuskvillan', 'Main Campus', 50),
@@ -165,8 +168,8 @@ async function insertTalkSubmission(data) {
     // PostgreSQL
     const query = `
       INSERT INTO talk_submissions
-      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions, program_id, workshop_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      (first_name, last_name, email, send_copy, talk_title, talk_abstract, affiliation, questions, program_id, workshop_id, submission_type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *;
     `;
     const values = [
@@ -179,7 +182,8 @@ async function insertTalkSubmission(data) {
       data.affiliation,
       data.questions || null,
       data.programId || data.program_id || null,
-      data.workshop_id || data.workshopId || null
+      data.workshop_id || data.workshopId || null,
+      data.submission_type || 'talk'
     ];
 
     const result = await pool.query(query, values);
@@ -247,7 +251,7 @@ async function getAllScheduledTalks(programId, workshopId) {
       SELECT
         st.*,
         ts.first_name, ts.last_name, ts.email, ts.talk_title,
-        ts.talk_abstract, ts.affiliation, ts.questions,
+        ts.talk_abstract, ts.affiliation, ts.questions, ts.submission_type,
         r.name as room_name, r.building as room_building
       FROM scheduled_talks st
       LEFT JOIN talk_submissions ts ON st.submission_id = ts.id

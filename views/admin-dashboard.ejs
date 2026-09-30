@@ -93,6 +93,7 @@
               <th>Email</th>
               <th>Affiliation</th>
               <th>Talk Title</th>
+              <th>Type</th>
               <th>Submitted</th>
               <th>Actions</th>
             </tr>
@@ -105,6 +106,13 @@
                 <td><%= talk.email %></td>
                 <td><%= talk.affiliation %></td>
                 <td title="<%= talk.talkTitle %>"><%= talk.talkTitle %></td>
+                <td>
+                  <% if (talk.submissionType === 'jrf') { %>
+                    <span style="background: #D4AF37; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold;">JRF</span>
+                  <% } else { %>
+                    <span style="background: #003E7E; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem;">Talk</span>
+                  <% } %>
+                </td>
                 <td>
                   <%= new Date(talk.submittedAt).toLocaleDateString('en-US', {
                     year: 'numeric',

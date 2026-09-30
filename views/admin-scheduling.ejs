@@ -225,11 +225,24 @@
 
     /* Card color variants */
     .cal-card.card-talk { background: #d4edda; border-color: #228B22; }
+    .cal-card.card-jrf { background: #fef3e0; border-color: #D4AF37; }
     .cal-card.card-event { background: #d6eaf8; border-color: #4682B4; }
     .cal-card.card-block { background: #f9edc6; border-color: #D4AF37; }
     .cal-card.card-published { background: #fff3cd; border-color: #D4AF37; }
     .cal-card.card-locked { opacity: 0.85; }
     .cal-card .cal-lock { font-size: 0.6rem; position: absolute; top: 1px; right: 2px; }
+
+    .jrf-badge {
+      display: inline-block;
+      background: #D4AF37;
+      color: white;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.6rem;
+      font-weight: bold;
+      margin-left: 0.25rem;
+      vertical-align: middle;
+    }
 
     .scheduled-talk {
       background: #90EE90;
@@ -887,8 +900,9 @@
         <div class="submission-card" draggable="true"
              ondragstart="dragStart(event, ${sub.id})"
              ondragend="dragEnd(event)"
-             onclick="showScheduleModal(${sub.id})">
-          <h4>${sub.talkTitle}</h4>
+             onclick="showScheduleModal(${sub.id})"
+             ${sub.submissionType === 'jrf' ? 'style="border-color: #D4AF37; background: #fef9ed;"' : ''}>
+          <h4>${sub.talkTitle}${jrfBadge(sub)}</h4>
           <p><strong>${sub.firstName} ${sub.lastName}</strong></p>
           <p>${sub.affiliation}</p>
         </div>
@@ -974,7 +988,14 @@
       if (talk.is_block) return 'card-block';
       if (!talk.submission_id) return 'card-event';
       if (talk.status === 'published') return 'card-published';
+      if (talk.submission_type === 'jrf') return 'card-jrf';
       return 'card-talk';
+    }
+
+    function jrfBadge(talk) {
+      if (talk.submission_type === 'jrf') return '<span class="jrf-badge">JRF</span>';
+      if (talk.submissionType === 'jrf') return '<span class="jrf-badge">JRF</span>';
+      return '';
     }
 
     function talkTitle(talk) {
@@ -1036,7 +1057,7 @@
         <div class="${classes}" data-talk-id="${talk.id}" data-repeat-group="${talk.repeat_group_id || ''}">
           ${checkboxHtml}${deleteHtml}${lockHtml}
           <div ${editAttr} style="cursor: ${editCursor}; flex: 1;">
-            <h5>${title}${repeatBadge}</h5>
+            <h5>${title}${jrfBadge(talk)}${repeatBadge}</h5>
             ${speaker ? `<p><strong>${speaker}</strong></p>` : ''}
             <p>📍 ${talk.room_name || 'No room'}</p>
             <p>🕒 ${startTime} - ${endTime}</p>
@@ -1156,7 +1177,7 @@
             style="grid-row: 2; grid-column: ${col + 2}; position: absolute; top: ${top}px; height: ${height}px;"
             ${editAction} title="${talkTitle(talk)} (${startTimeStr}-${endTimeStr})">
             ${lockIcon}
-            <div class="cal-title">${talkTitle(talk)}</div>
+            <div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>
             ${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}
             ${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}
           </div>`;
@@ -1224,7 +1245,7 @@
         card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
         card.title = `${talkTitle(talk)} (${startTimeStr}-${endTimeStr})`;
         if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
-        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}`;
+        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${startTimeStr}-${endTimeStr}</div>` : ''}`;
 
         grid.appendChild(card);
       });
@@ -1307,7 +1328,7 @@
         card.style.cssText = `top: ${top}px; left: ${pos.left + 2}px; width: ${pos.width - 6}px; height: ${height}px;`;
         card.title = `${talkTitle(talk)} – ${talkSpeaker(talk)}\n${talk.room_name || 'No room'}\n${startTimeStr}-${endTimeStr}`;
         if (!talk.is_locked) card.onclick = () => editScheduledTalk(talk.id);
-        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${talk.room_name || ''} ${startTimeStr}-${endTimeStr}</div>` : ''}`;
+        card.innerHTML = `${lockIcon}<div class="cal-title">${talkTitle(talk)}${jrfBadge(talk)}</div>${height > 24 ? `<div class="cal-speaker">${talkSpeaker(talk)}</div>` : ''}${height > 40 ? `<div class="cal-room">${talk.room_name || ''} ${startTimeStr}-${endTimeStr}</div>` : ''}`;
 
         grid.appendChild(card);
       });
